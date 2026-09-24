@@ -8,6 +8,7 @@ import { env } from "./config/env.js";
 import { logger } from "./config/logger.js";
 import { openApiDocument } from "./config/swagger.js";
 import { errorHandler } from "./middlewares/error-handler.js";
+import { recordHttpMetrics } from "./middlewares/metrics.js";
 import { notFound } from "./middlewares/not-found.js";
 import { globalRateLimit } from "./middlewares/rate-limit.js";
 import { requestId } from "./middlewares/request-id.js";
@@ -32,6 +33,7 @@ export function createApp(): Express {
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
   app.use(requestId);
+  if (env.METRICS_ENABLED) app.use(recordHttpMetrics);
   app.use(
     pinoHttp({
       logger,

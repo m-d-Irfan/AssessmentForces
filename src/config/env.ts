@@ -24,6 +24,11 @@ const envSchema = z
     LOG_LEVEL: z
       .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
       .default("info"),
+    METRICS_ENABLED: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((value) => value === "true"),
+    METRICS_TOKEN: optionalString,
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
     MAINTENANCE_JOBS_ENABLED: z
@@ -89,6 +94,14 @@ const envSchema = z
         code: "custom",
         path: ["GOOGLE_CLIENT_ID"],
         message: "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be configured together",
+      });
+    }
+
+    if (values.NODE_ENV === "production" && values.METRICS_ENABLED && !values.METRICS_TOKEN) {
+      context.addIssue({
+        code: "custom",
+        path: ["METRICS_TOKEN"],
+        message: "A metrics bearer token is required when production metrics are enabled",
       });
     }
 

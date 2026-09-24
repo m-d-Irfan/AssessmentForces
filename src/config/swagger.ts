@@ -11,7 +11,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: env.APP_NAME,
-    version: "1.3.0",
+    version: "1.4.0",
     description: "Backend API for developer assessments, authentication, and recruiter workflows.",
   },
   servers: [{ url: `http://localhost:${env.PORT}`, description: "Local development" }],
@@ -120,6 +120,18 @@ export const openApiDocument = {
         tags: ["System"],
         summary: "PostgreSQL and Redis readiness",
         responses: { "200": ok, "503": { description: "A dependency is unavailable" } },
+      },
+    },
+    "/metrics": {
+      get: {
+        tags: ["System"],
+        summary: "Prometheus-compatible operational metrics",
+        description: "Requires the configured metrics bearer token outside local development.",
+        responses: {
+          "200": { description: "Prometheus text exposition" },
+          "401": { description: "Missing or invalid metrics token" },
+          "404": { description: "Metrics are disabled" },
+        },
       },
     },
     [`${env.API_PREFIX}/auth/register`]: {

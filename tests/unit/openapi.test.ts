@@ -3,7 +3,7 @@ import { openApiDocument } from "../../src/config/swagger.js";
 describe("OpenAPI contract", () => {
   it("documents the canonical API version and authentication scheme", () => {
     expect(openApiDocument.openapi).toBe("3.1.0");
-    expect(openApiDocument.info.version).toBe("1.3.0");
+    expect(openApiDocument.info.version).toBe("1.4.0");
     expect(openApiDocument.components.securitySchemes.bearerAuth).toMatchObject({
       type: "http",
       scheme: "bearer",

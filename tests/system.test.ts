@@ -29,6 +29,16 @@ describe("system endpoints", () => {
     expect(response.body.openapi).toBe("3.1.0");
   });
 
+  it("exports bounded operational metrics", async () => {
+    await request(app).get("/health").expect(200);
+    const response = await request(app).get("/metrics").expect(200);
+
+    expect(response.headers["content-type"]).toContain("text/plain");
+    expect(response.text).toContain("devassess_process_uptime_seconds");
+    expect(response.text).toContain("devassess_http_requests_total");
+    expect(response.text).toContain('route="/health"');
+  });
+
   it("returns a structured 404 response", async () => {
     const response = await request(app).get("/missing-route").expect(404);
     expect(response.body).toMatchObject({ success: false, code: "ROUTE_NOT_FOUND", errors: [] });

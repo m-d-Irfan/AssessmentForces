@@ -1,10 +1,24 @@
 import { Router } from "express";
 import { checkDatabaseConnection } from "../../config/database.js";
+import { env } from "../../config/env.js";
 import { checkRedisConnection } from "../../config/redis.js";
 import { maintenanceJobStatus } from "../../jobs/maintenance.job.js";
+import { renderMetrics } from "../../middlewares/metrics.js";
 import { sendSuccess } from "../../shared/responses/api-response.js";
 
 export const systemRouter = Router();
+
+systemRouter.get("/metrics", (request, response) => {
+  if (!env.METRICS_ENABLED) return response.status(404).end();
+
+  if (env.METRICS_TOKEN) {
+    const authorization = request.get("authorization");
+    if (authorization !== `Bearer ${env.METRICS_TOKEN}`) return response.status(401).end();
+  }
+
+  response.type("text/plain; version=0.0.4; charset=utf-8");
+  return response.send(renderMetrics());
+});
 
 systemRouter.get("/health", (_request, response) =>
   sendSuccess(response, {

@@ -42,3 +42,9 @@ docker compose --env-file .env.production -f docker-compose.production.yml down
 ```
 
 Do not add `--volumes` unless the persistent PostgreSQL and Redis data is intentionally being deleted.
+
+## Monitor
+
+Configure the monitoring system to scrape `/metrics` with `Authorization: Bearer <METRICS_TOKEN>`. The endpoint exports process uptime, resident memory, request totals, status codes, and cumulative request duration using bounded route labels. Keep the token in a secret manager and never expose the metrics endpoint publicly without gateway restrictions.
+
+Alert when `/ready` remains unavailable, the API produces sustained 5xx responses, response latency rises, a container repeatedly restarts, disk space approaches capacity, or PostgreSQL/Redis health checks fail. Centralize the structured JSON logs and retain audit records according to company policy.
