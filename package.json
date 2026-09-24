@@ -27,6 +27,8 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@neon/config": "^1.7.3",
+    "@neon/env": "^1.4.4",
     "@prisma/client": "6.19.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -46,8 +48,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.4",
-    "@types/cors": "^2.8.19",
     "@types/cookie-parser": "^1.4.9",
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
     "@types/node": "^24.10.0",
     "@types/nodemailer": "^7.0.3",
@@ -56,8 +58,8 @@
     "@vitest/coverage-v8": "^4.0.7",
     "prisma": "6.19.0",
     "supertest": "^7.1.4",
-    "tsx": "^4.20.6",
     "tsup": "^8.5.1",
+    "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^4.0.7"
   }
