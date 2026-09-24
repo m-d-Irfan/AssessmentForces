@@ -14,7 +14,7 @@ export const openApiDocument = {
     version: "1.4.0",
     description: "Backend API for developer assessments, authentication, and recruiter workflows.",
   },
-  servers: [{ url: `http://localhost:${env.PORT}`, description: "Local development" }],
+  servers: [{ url: env.APP_BASE_URL, description: "Configured API server" }],
   tags: [
     { name: "System", description: "Service health and readiness" },
     { name: "Authentication", description: "Local sessions, email verification, and Google OAuth" },

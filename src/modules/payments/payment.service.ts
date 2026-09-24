@@ -160,7 +160,7 @@ async function withPaymentLock<T>(paymentId: string, callback: () => Promise<T>)
   await ensureRedisConnection();
   const key = `${process.env.NODE_ENV ?? "development"}:lock:payment:${paymentId}`;
   const token = randomBytes(16).toString("hex");
-  const acquired = await redis.set(key, token, "PX", 30_000, "NX");
+  const acquired = await redis.set(key, token, { px: 30_000, nx: true });
   if (!acquired)
     throw new AppError(409, "PAYMENT_PROCESSING", "This payment is already being processed");
   try {
@@ -168,9 +168,8 @@ async function withPaymentLock<T>(paymentId: string, callback: () => Promise<T>)
   } finally {
     await redis.eval(
       "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
-      1,
-      key,
-      token,
+      [key],
+      [token],
     );
   }
 }

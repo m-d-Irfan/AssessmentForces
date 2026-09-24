@@ -10,7 +10,7 @@ function storeOptions(prefix: string) {
         store: new RedisStore({
           prefix: `${env.NODE_ENV}:rate-limit:${prefix}:`,
           sendCommand: (command: string, ...args: string[]) =>
-            redis.call(command, ...args) as Promise<
+            redis.exec([command, ...args]) as Promise<
               string | number | boolean | Array<string | number | boolean>
             >,
         }),

@@ -19,7 +19,8 @@ const envSchema = z
     APP_BASE_URL: z.url().default("http://localhost:5000"),
     CANDIDATE_APP_URL: z.url().default("http://localhost:3000"),
     DATABASE_URL: z.url(),
-    REDIS_URL: z.url(),
+    UPSTASH_REDIS_REST_URL: z.url(),
+    UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
     CORS_ORIGINS: z.string().default("http://localhost:3000"),
     LOG_LEVEL: z
       .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
@@ -125,8 +126,6 @@ const parsed = envSchema.safeParse({
   NODE_ENV: nodeEnv,
   DATABASE_URL:
     process.env.DATABASE_URL ?? (nodeEnv === "production" ? undefined : localDatabaseUrl),
-  REDIS_URL:
-    process.env.REDIS_URL ?? (nodeEnv === "production" ? undefined : "redis://localhost:6379"),
 });
 
 if (!parsed.success) {

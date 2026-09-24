@@ -30,9 +30,8 @@ const lockKey = `${env.NODE_ENV}:jobs:maintenance`;
 async function releaseLock(token: string): Promise<void> {
   await redis.eval(
     "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
-    1,
-    lockKey,
-    token,
+    [lockKey],
+    [token],
   );
 }
 
@@ -150,13 +149,10 @@ export async function runMaintenanceJob(): Promise<void> {
   try {
     await ensureRedisConnection();
     acquired = Boolean(
-      await redis.set(
-        lockKey,
-        token,
-        "PX",
-        Math.max(env.MAINTENANCE_JOB_INTERVAL_MS * 2, 60_000),
-        "NX",
-      ),
+      await redis.set(lockKey, token, {
+        px: Math.max(env.MAINTENANCE_JOB_INTERVAL_MS * 2, 60_000),
+        nx: true,
+      }),
     );
     if (!acquired) return;
     const now = new Date();

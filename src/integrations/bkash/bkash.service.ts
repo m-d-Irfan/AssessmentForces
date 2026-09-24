@@ -69,14 +69,14 @@ async function grantToken(): Promise<string> {
 
   await ensureRedisConnection();
   const expiresIn = Number(payload.expires_in ?? 3600);
-  await redis.set(tokenKey, token, "EX", Math.max(60, Math.min(expiresIn - 60, 3540)));
+  await redis.set(tokenKey, token, { ex: Math.max(60, Math.min(expiresIn - 60, 3540)) });
   return token;
 }
 
 async function accessToken(): Promise<string> {
   credentials();
   await ensureRedisConnection();
-  return (await redis.get(tokenKey)) ?? grantToken();
+  return (await redis.get<string>(tokenKey)) ?? grantToken();
 }
 
 async function authenticatedRequest(path: string, body: BkashPayload): Promise<BkashPaymentResult> {

@@ -28,6 +28,7 @@ jobs:
         run: npm run prisma:generate
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dev_assess_test?schema=public
+          DATABASE_URL_UNPOOLED: postgresql://postgres:postgres@localhost:5432/dev_assess_test?schema=public
 
       - name: Lint
         run: npm run lint

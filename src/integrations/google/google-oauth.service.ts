@@ -38,9 +38,7 @@ export async function createGoogleAuthorizationUrl(role: GoogleRole): Promise<st
   await redis.set(
     oauthStateKey(state),
     JSON.stringify({ role, nonce, codeVerifier } satisfies OAuthState),
-    "EX",
-    env.GOOGLE_OAUTH_STATE_TTL_SECONDS,
-    "NX",
+    { ex: env.GOOGLE_OAUTH_STATE_TTL_SECONDS, nx: true },
   );
 
   const parameters = new URLSearchParams({
@@ -59,11 +57,7 @@ export async function createGoogleAuthorizationUrl(role: GoogleRole): Promise<st
 
 async function consumeOAuthState(state: string): Promise<OAuthState> {
   await ensureRedisConnection();
-  const raw = (await redis.eval(
-    "local value = redis.call('GET', KEYS[1]); if value then redis.call('DEL', KEYS[1]); end; return value",
-    1,
-    oauthStateKey(state),
-  )) as string | null;
+  const raw = await redis.getdel<string>(oauthStateKey(state));
   if (!raw) throw new AppError(400, "INVALID_OAUTH_STATE", "OAuth state is invalid or expired");
 
   try {

@@ -16,7 +16,7 @@ function groupCount(group: {
 async function cached<T>(key: string, build: () => Promise<T>): Promise<T> {
   try {
     await ensureRedisConnection();
-    const value = await redis.get(key);
+    const value = await redis.get<string>(key);
     if (value) return JSON.parse(value) as T;
   } catch (error) {
     logger.warn({ err: error, key }, "Analytics cache read failed");
@@ -24,7 +24,7 @@ async function cached<T>(key: string, build: () => Promise<T>): Promise<T> {
   const value = await build();
   try {
     await ensureRedisConnection();
-    await redis.set(key, JSON.stringify(value), "EX", 60);
+    await redis.set(key, JSON.stringify(value), { ex: 60 });
   } catch (error) {
     logger.warn({ err: error, key }, "Analytics cache write failed");
   }
