@@ -11,7 +11,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: env.APP_NAME,
-    version: "0.9.0",
+    version: "0.10.0",
     description: "Backend API for developer assessments, authentication, and recruiter workflows.",
   },
   servers: [{ url: `http://localhost:${env.PORT}`, description: "Local development" }],
@@ -26,6 +26,7 @@ export const openApiDocument = {
     { name: "Attempts", description: "Timed candidate assessment-taking workflow" },
     { name: "Evaluations", description: "Automatic and recruiter assessment grading" },
     { name: "Results", description: "Result review, controlled release, and candidate access" },
+    { name: "Notifications", description: "Authenticated user notification inbox" },
   ],
   components: {
     securitySchemes: {
@@ -652,6 +653,44 @@ export const openApiDocument = {
         summary: "Release a finalized result to its candidate",
         security: bearer,
         responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/notifications`]: {
+      get: {
+        tags: ["Notifications"],
+        summary: "List notifications for the authenticated user",
+        security: bearer,
+        parameters: [
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
+          { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
+          { name: "unreadOnly", in: "query", schema: { type: "boolean" } },
+          { name: "type", in: "query", schema: { type: "string" } },
+        ],
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/notifications/unread-count`]: {
+      get: {
+        tags: ["Notifications"],
+        summary: "Get the authenticated user's unread notification count",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/notifications/read-all`]: {
+      post: {
+        tags: ["Notifications"],
+        summary: "Mark all notifications as read",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/notifications/{id}/read`]: {
+      patch: {
+        tags: ["Notifications"],
+        summary: "Mark one owned notification as read",
+        security: bearer,
+        responses: { "200": ok, "404": { description: "Notification not found" } },
       },
     },
   },
