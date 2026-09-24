@@ -11,7 +11,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: env.APP_NAME,
-    version: "1.0.0",
+    version: "1.1.0",
     description: "Backend API for developer assessments, authentication, and recruiter workflows.",
   },
   servers: [{ url: `http://localhost:${env.PORT}`, description: "Local development" }],
@@ -29,6 +29,7 @@ export const openApiDocument = {
     { name: "Notifications", description: "Authenticated user notification inbox" },
     { name: "Analytics", description: "Role-specific performance and platform dashboards" },
     { name: "Recruitment", description: "Secure multi-stage recruitment programs and reviews" },
+    { name: "Administration", description: "Platform governance restricted to administrators" },
   ],
   components: {
     securitySchemes: {
@@ -847,6 +848,107 @@ export const openApiDocument = {
         description: "Reviewer scores never advance a candidate automatically.",
         security: bearer,
         responses: { "200": ok, "403": { description: "Lead recruiter role required" } },
+      },
+    },
+    [`${env.API_PREFIX}/admin/users`]: {
+      get: {
+        tags: ["Administration"],
+        summary: "Search and filter platform users",
+        security: bearer,
+        responses: { "200": ok, "403": { description: "Administrator role required" } },
+      },
+    },
+    [`${env.API_PREFIX}/admin/users/{id}`]: {
+      get: {
+        tags: ["Administration"],
+        summary: "Get a user without authentication secrets",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/admin/users/{id}/status`]: {
+      patch: {
+        tags: ["Administration"],
+        summary: "Activate, suspend, or return a user to pending verification",
+        description: "Suspension also revokes active refresh sessions.",
+        security: bearer,
+        responses: { "200": ok, "409": { description: "Self-status changes are denied" } },
+      },
+    },
+    [`${env.API_PREFIX}/admin/companies`]: {
+      get: {
+        tags: ["Administration"],
+        summary: "Search and filter companies",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/admin/companies/{id}`]: {
+      get: {
+        tags: ["Administration"],
+        summary: "Get company governance and usage details",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/admin/companies/{id}/status`]: {
+      patch: {
+        tags: ["Administration"],
+        summary: "Activate or suspend a company",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/admin/companies/{id}/verification`]: {
+      patch: {
+        tags: ["Administration"],
+        summary: "Verify or unverify a company",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/admin/companies/{id}/credits/adjust`]: {
+      post: {
+        tags: ["Administration"],
+        summary: "Apply an audited manual company-credit adjustment",
+        security: bearer,
+        responses: { "200": ok, "409": { description: "Balance would become negative" } },
+      },
+    },
+    [`${env.API_PREFIX}/admin/credit-packages`]: {
+      get: {
+        tags: ["Administration"],
+        summary: "List active, inactive, and deleted credit packages",
+        security: bearer,
+        responses: { "200": ok },
+      },
+      post: {
+        tags: ["Administration"],
+        summary: "Create a credit package",
+        security: bearer,
+        responses: { "201": ok },
+      },
+    },
+    [`${env.API_PREFIX}/admin/credit-packages/{id}`]: {
+      patch: {
+        tags: ["Administration"],
+        summary: "Update or deactivate a credit package",
+        security: bearer,
+        responses: { "200": ok },
+      },
+      delete: {
+        tags: ["Administration"],
+        summary: "Soft-delete a credit package",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/admin/audit-logs`]: {
+      get: {
+        tags: ["Administration"],
+        summary: "Search immutable platform audit records",
+        security: bearer,
+        responses: { "200": ok },
       },
     },
   },
