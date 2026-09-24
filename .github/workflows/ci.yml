@@ -40,3 +40,6 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Build production container
+        run: docker build --target runtime --tag devassess-api:ci .
