@@ -11,7 +11,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: env.APP_NAME,
-    version: "0.8.0",
+    version: "0.9.0",
     description: "Backend API for developer assessments, authentication, and recruiter workflows.",
   },
   servers: [{ url: `http://localhost:${env.PORT}`, description: "Local development" }],
@@ -25,6 +25,7 @@ export const openApiDocument = {
     { name: "Invitations", description: "Credit-backed candidate assessment invitations" },
     { name: "Attempts", description: "Timed candidate assessment-taking workflow" },
     { name: "Evaluations", description: "Automatic and recruiter assessment grading" },
+    { name: "Results", description: "Result review, controlled release, and candidate access" },
   ],
   components: {
     securitySchemes: {
@@ -593,6 +594,64 @@ export const openApiDocument = {
           "200": ok,
           "409": { description: "One or more submitted answers still require grading" },
         },
+      },
+    },
+    [`${env.API_PREFIX}/results`]: {
+      get: {
+        tags: ["Results"],
+        summary: "List company-scoped assessment results",
+        security: bearer,
+        parameters: [
+          { name: "companyId", in: "query", schema: { type: "string" } },
+          { name: "assessmentId", in: "query", schema: { type: "string" } },
+          { name: "candidateId", in: "query", schema: { type: "string" } },
+          { name: "passed", in: "query", schema: { type: "boolean" } },
+          { name: "released", in: "query", schema: { type: "boolean" } },
+        ],
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/results/mine`]: {
+      get: {
+        tags: ["Results"],
+        summary: "List the authenticated candidate's released results",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/results/mine/{id}`]: {
+      get: {
+        tags: ["Results"],
+        summary: "Get one released result with answer scores and feedback",
+        security: bearer,
+        responses: { "200": ok, "404": { description: "Released result not found" } },
+      },
+    },
+    [`${env.API_PREFIX}/results/{id}`]: {
+      get: {
+        tags: ["Results"],
+        summary: "Get a result for recruiter review",
+        security: bearer,
+        responses: { "200": ok },
+      },
+      patch: {
+        tags: ["Results"],
+        summary: "Update the summary of an unreleased result",
+        security: bearer,
+        requestBody: jsonBody({
+          type: "object",
+          required: ["summary"],
+          properties: { summary: { type: ["string", "null"], maxLength: 20000 } },
+        }),
+        responses: { "200": ok, "409": { description: "Result is already released" } },
+      },
+    },
+    [`${env.API_PREFIX}/results/{id}/release`]: {
+      post: {
+        tags: ["Results"],
+        summary: "Release a finalized result to its candidate",
+        security: bearer,
+        responses: { "200": ok },
       },
     },
   },
