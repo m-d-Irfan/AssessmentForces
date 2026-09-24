@@ -11,7 +11,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: env.APP_NAME,
-    version: "0.6.0",
+    version: "0.7.0",
     description: "Backend API for developer assessments, authentication, and recruiter workflows.",
   },
   servers: [{ url: `http://localhost:${env.PORT}`, description: "Local development" }],
@@ -23,6 +23,7 @@ export const openApiDocument = {
     { name: "Payments", description: "bKash sandbox payments and reconciliation" },
     { name: "Credits", description: "Credit packages, balances, and immutable ledger" },
     { name: "Invitations", description: "Credit-backed candidate assessment invitations" },
+    { name: "Attempts", description: "Timed candidate assessment-taking workflow" },
   ],
   components: {
     securitySchemes: {
@@ -80,6 +81,14 @@ export const openApiDocument = {
           assessmentId: { type: "string" },
           candidateEmail: { type: "string", format: "email" },
           expiresAt: { type: "string", format: "date-time" },
+        },
+      },
+      SaveAnswerRequest: {
+        type: "object",
+        properties: {
+          response: { description: "Choice or text response" },
+          sourceCode: { type: "string" },
+          language: { type: "string" },
         },
       },
     },
@@ -467,6 +476,51 @@ export const openApiDocument = {
         summary: "Revoke a pending invitation and refund its credit",
         security: bearer,
         responses: { "200": ok, "409": { description: "Invitation cannot be revoked" } },
+      },
+    },
+    [`${env.API_PREFIX}/attempts/start`]: {
+      post: {
+        tags: ["Attempts"],
+        summary: "Start or resume an attempt from an invitation token",
+        security: bearer,
+        requestBody: jsonBody({
+          type: "object",
+          required: ["invitationToken"],
+          properties: { invitationToken: { type: "string" } },
+        }),
+        responses: {
+          "201": ok,
+          "409": { description: "Invitation or assessment is unavailable" },
+        },
+      },
+    },
+    [`${env.API_PREFIX}/attempts/{id}`]: {
+      get: {
+        tags: ["Attempts"],
+        summary: "Get an attempt with candidate-safe assessment questions and saved answers",
+        description: "Correct answers and hidden test cases are never included.",
+        security: bearer,
+        responses: { "200": ok, "404": { description: "Attempt not found" } },
+      },
+    },
+    [`${env.API_PREFIX}/attempts/{id}/answers/{itemId}`]: {
+      put: {
+        tags: ["Attempts"],
+        summary: "Create or replace a saved answer",
+        security: bearer,
+        requestBody: jsonBody({ $ref: "#/components/schemas/SaveAnswerRequest" }),
+        responses: {
+          "200": ok,
+          "409": { description: "Attempt is submitted or expired" },
+        },
+      },
+    },
+    [`${env.API_PREFIX}/attempts/{id}/submit`]: {
+      post: {
+        tags: ["Attempts"],
+        summary: "Submit an attempt and queue it for evaluation",
+        security: bearer,
+        responses: { "200": ok },
       },
     },
   },

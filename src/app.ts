@@ -12,6 +12,7 @@ import { notFound } from "./middlewares/not-found.js";
 import { globalRateLimit } from "./middlewares/rate-limit.js";
 import { requestId } from "./middlewares/request-id.js";
 import { assessmentRouter } from "./modules/assessments/assessment.route.js";
+import { attemptRouter } from "./modules/attempts/attempt.route.js";
 import { authRouter } from "./modules/auth/auth.route.js";
 import { invitationRouter } from "./modules/invitations/invitation.route.js";
 import { paymentRouter } from "./modules/payments/payment.route.js";
@@ -57,6 +58,7 @@ export function createApp(): Express {
   apiRouter.use("/invitations", invitationRouter);
   apiRouter.use("/problems", problemRouter);
   apiRouter.use("/assessments", assessmentRouter);
+  apiRouter.use("/attempts", attemptRouter);
   apiRouter.use(paymentRouter);
   apiRouter.get("/", (_request, response) =>
     response.json({
