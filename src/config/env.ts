@@ -16,6 +16,7 @@ const envSchema = z
     API_PREFIX: z.string().startsWith("/").default("/api/v1"),
     APP_NAME: z.string().min(1).default("DevAssess API"),
     APP_BASE_URL: z.url().default("http://localhost:5000"),
+    CANDIDATE_APP_URL: z.url().default("http://localhost:3000"),
     DATABASE_URL: z.url(),
     REDIS_URL: z.url(),
     CORS_ORIGINS: z.string().default("http://localhost:3000"),

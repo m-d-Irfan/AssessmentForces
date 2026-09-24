@@ -11,7 +11,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: env.APP_NAME,
-    version: "0.5.0",
+    version: "0.6.0",
     description: "Backend API for developer assessments, authentication, and recruiter workflows.",
   },
   servers: [{ url: `http://localhost:${env.PORT}`, description: "Local development" }],
@@ -22,6 +22,7 @@ export const openApiDocument = {
     { name: "Assessments", description: "Assessment composition and lifecycle" },
     { name: "Payments", description: "bKash sandbox payments and reconciliation" },
     { name: "Credits", description: "Credit packages, balances, and immutable ledger" },
+    { name: "Invitations", description: "Credit-backed candidate assessment invitations" },
   ],
   components: {
     securitySchemes: {
@@ -70,6 +71,15 @@ export const openApiDocument = {
           companyId: { type: "string" },
           creditPackageId: { type: "string" },
           payerReference: { type: "string", maxLength: 100 },
+        },
+      },
+      CreateInvitationRequest: {
+        type: "object",
+        required: ["assessmentId", "candidateEmail", "expiresAt"],
+        properties: {
+          assessmentId: { type: "string" },
+          candidateEmail: { type: "string", format: "email" },
+          expiresAt: { type: "string", format: "date-time" },
         },
       },
     },
@@ -405,6 +415,58 @@ export const openApiDocument = {
           { name: "companyId", in: "query", required: true, schema: { type: "string" } },
         ],
         responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/invitations`]: {
+      post: {
+        tags: ["Invitations"],
+        summary: "Invite a registered candidate and consume one company credit",
+        security: bearer,
+        requestBody: jsonBody({ $ref: "#/components/schemas/CreateInvitationRequest" }),
+        responses: {
+          "201": ok,
+          "402": { description: "Company has insufficient credits" },
+          "409": { description: "Candidate was already invited" },
+        },
+      },
+      get: {
+        tags: ["Invitations"],
+        summary: "List company invitations",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/invitations/mine`]: {
+      get: {
+        tags: ["Invitations"],
+        summary: "List invitations for the authenticated candidate",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/invitations/token/{token}`]: {
+      get: {
+        tags: ["Invitations"],
+        summary: "Verify and retrieve an invitation as its candidate",
+        security: bearer,
+        parameters: [{ name: "token", in: "path", required: true, schema: { type: "string" } }],
+        responses: { "200": ok, "404": { description: "Invitation not found" } },
+      },
+    },
+    [`${env.API_PREFIX}/invitations/{id}`]: {
+      get: {
+        tags: ["Invitations"],
+        summary: "Get a company invitation",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/invitations/{id}/revoke`]: {
+      post: {
+        tags: ["Invitations"],
+        summary: "Revoke a pending invitation and refund its credit",
+        security: bearer,
+        responses: { "200": ok, "409": { description: "Invitation cannot be revoked" } },
       },
     },
   },

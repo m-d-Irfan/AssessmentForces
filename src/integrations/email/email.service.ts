@@ -40,3 +40,16 @@ export function sendPasswordResetEmail(email: string, token: string): Promise<bo
     `Use this one-time password reset token within 30 minutes: ${token}`,
   );
 }
+
+export function sendAssessmentInvitationEmail(
+  email: string,
+  assessmentTitle: string,
+  invitationUrl: string,
+  expiresAt: Date,
+): Promise<boolean> {
+  return deliver(
+    email,
+    `Assessment invitation: ${assessmentTitle}`,
+    `You have been invited to complete "${assessmentTitle}". Open this link before ${expiresAt.toISOString()}: ${invitationUrl}`,
+  );
+}
