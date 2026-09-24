@@ -523,5 +523,15 @@ export const openApiDocument = {
         responses: { "200": ok },
       },
     },
+    [`${env.API_PREFIX}/attempts/{id}/tab-change`]: {
+      post: {
+        tags: ["Attempts"],
+        summary: "Auto-submit an attempt when the assessment page loses visibility",
+        description:
+          "The frontend calls this endpoint immediately after detecting a tab change or hidden page.",
+        security: bearer,
+        responses: { "200": ok, "404": { description: "Attempt not found" } },
+      },
+    },
   },
 };

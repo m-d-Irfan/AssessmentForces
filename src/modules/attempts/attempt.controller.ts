@@ -1,7 +1,13 @@
 import type { Request, Response } from "express";
 import { AppError } from "../../shared/errors/app-error.js";
 import { sendSuccess } from "../../shared/responses/api-response.js";
-import { getCandidateAttempt, saveAnswer, startAttempt, submitAttempt } from "./attempt.service.js";
+import {
+  autoSubmitForTabChange,
+  getCandidateAttempt,
+  saveAnswer,
+  startAttempt,
+  submitAttempt,
+} from "./attempt.service.js";
 
 function candidateId(request: Request): string {
   if (!request.auth)
@@ -40,5 +46,12 @@ export async function submitAttemptHandler(request: Request, response: Response)
   return sendSuccess(response, {
     message: "Assessment attempt submitted",
     data: await submitAttempt(request.params.id as string, candidateId(request)),
+  });
+}
+
+export async function tabChangeHandler(request: Request, response: Response) {
+  return sendSuccess(response, {
+    message: "Assessment attempt automatically submitted after tab change",
+    data: await autoSubmitForTabChange(request.params.id as string, candidateId(request)),
   });
 }

@@ -270,3 +270,35 @@ export async function submitAttempt(attemptId: string, candidateId: string) {
   });
   return getCandidateAttempt(attempt.id, candidateId);
 }
+
+export async function autoSubmitForTabChange(attemptId: string, candidateId: string) {
+  const attempt = await prisma.attempt.findFirst({
+    where: { id: attemptId, candidateId },
+    select: { id: true, status: true },
+  });
+  if (!attempt) throw new AppError(404, "ATTEMPT_NOT_FOUND", "Attempt not found");
+  if (attempt.status !== AttemptStatus.IN_PROGRESS) {
+    return getCandidateAttempt(attempt.id, candidateId);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const submitted = await tx.attempt.updateMany({
+      where: { id: attempt.id, candidateId, status: AttemptStatus.IN_PROGRESS },
+      data: {
+        status: AttemptStatus.AUTO_SUBMITTED,
+        submittedAt: new Date(),
+        lockVersion: { increment: 1 },
+      },
+    });
+    if (submitted.count === 1) {
+      await tx.evaluation.create({
+        data: {
+          attemptId: attempt.id,
+          status: EvaluationStatus.PENDING,
+          notes: "Automatically submitted because the candidate changed tabs or hid the page.",
+        },
+      });
+    }
+  });
+  return getCandidateAttempt(attempt.id, candidateId);
+}

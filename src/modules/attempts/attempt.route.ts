@@ -8,6 +8,7 @@ import {
   saveAnswerHandler,
   startAttemptHandler,
   submitAttemptHandler,
+  tabChangeHandler,
 } from "./attempt.controller.js";
 import {
   answerParamsSchema,
@@ -30,4 +31,9 @@ attemptRouter.post(
   "/:id/submit",
   validate({ params: attemptIdParamsSchema }),
   submitAttemptHandler,
+);
+attemptRouter.post(
+  "/:id/tab-change",
+  validate({ params: attemptIdParamsSchema }),
+  tabChangeHandler,
 );
