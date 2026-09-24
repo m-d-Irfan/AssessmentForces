@@ -115,6 +115,63 @@ enum CreditLedgerType {
   ADMIN_ADJUSTMENT
 }
 
+enum RecruitmentProgramStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+  ARCHIVED
+}
+
+enum ProgramMemberRole {
+  LEAD_RECRUITER
+  TECHNICAL_RECRUITER
+  HR
+}
+
+enum ProgramInvitationType {
+  CANDIDATE
+  MEMBER
+}
+
+enum ProgramInvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum RecruitmentStageType {
+  CODING_ASSESSMENT
+  TECHNICAL_INTERVIEW
+  HR_INTERVIEW
+  FINAL_DECISION
+}
+
+enum CandidateApplicationStatus {
+  INVITED
+  ACTIVE
+  REJECTED
+  HIRED
+  WITHDRAWN
+  COMPLETED
+}
+
+enum CandidateStageStatus {
+  LOCKED
+  AVAILABLE
+  SCHEDULED
+  IN_PROGRESS
+  AWAITING_REVIEW
+  PASSED
+  FAILED
+  SKIPPED
+}
+
+enum StageDecision {
+  PASS
+  FAIL
+}
+
 model User {
   id              String     @id @default(cuid())
   email           String     @unique @db.VarChar(320)
@@ -129,24 +186,33 @@ model User {
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
-  candidateProfile    CandidateProfile?
-  authAccounts        AuthAccount[]
-  refreshSessions     RefreshSession[]
-  verificationTokens  EmailVerificationToken[]
-  passwordResetTokens PasswordResetToken[]
-  companyMemberships  CompanyMembership[]
-  createdCompanies    Company[]                @relation("CompanyCreator")
-  createdProblems     Problem[]                @relation("ProblemCreator")
-  createdAssessments  Assessment[]             @relation("AssessmentCreator")
-  sentInvitations     Invitation[]             @relation("InvitationSender")
-  receivedInvitations Invitation[]             @relation("InvitationCandidate")
-  attempts            Attempt[]                @relation("AttemptCandidate")
-  gradedAnswers       Answer[]                 @relation("AnswerGrader")
-  evaluations         Evaluation[]             @relation("EvaluationEvaluator")
-  initiatedPayments   Payment[]                @relation("PaymentInitiator")
-  creditLedgerEntries CreditLedger[]           @relation("CreditLedgerActor")
-  auditLogs           AuditLog[]               @relation("AuditActor")
-  notifications       Notification[]
+  candidateProfile       CandidateProfile?
+  authAccounts           AuthAccount[]
+  refreshSessions        RefreshSession[]
+  verificationTokens     EmailVerificationToken[]
+  passwordResetTokens    PasswordResetToken[]
+  companyMemberships     CompanyMembership[]
+  createdCompanies       Company[]                @relation("CompanyCreator")
+  createdProblems        Problem[]                @relation("ProblemCreator")
+  createdAssessments     Assessment[]             @relation("AssessmentCreator")
+  sentInvitations        Invitation[]             @relation("InvitationSender")
+  receivedInvitations    Invitation[]             @relation("InvitationCandidate")
+  attempts               Attempt[]                @relation("AttemptCandidate")
+  gradedAnswers          Answer[]                 @relation("AnswerGrader")
+  evaluations            Evaluation[]             @relation("EvaluationEvaluator")
+  initiatedPayments      Payment[]                @relation("PaymentInitiator")
+  creditLedgerEntries    CreditLedger[]           @relation("CreditLedgerActor")
+  auditLogs              AuditLog[]               @relation("AuditActor")
+  notifications          Notification[]
+  createdPrograms        RecruitmentProgram[]     @relation("ProgramCreator")
+  programMemberships     ProgramMember[]
+  sentProgramInvites     ProgramInvitation[]      @relation("ProgramInvitationSender")
+  acceptedProgramInvites ProgramInvitation[]      @relation("ProgramInvitationAcceptor")
+  candidateApplications  CandidateApplication[]   @relation("ApplicationCandidate")
+  stageAssignments       StageAssignee[]
+  stageReviews           StageReview[]            @relation("StageReviewer")
+  finalizedStages        CandidateStageProgress[] @relation("StageFinalizer")
+  scheduledInterviews    InterviewSchedule[]      @relation("InterviewScheduler")
 
   @@index([role, status])
   @@index([deletedAt])
@@ -252,14 +318,15 @@ model Company {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  createdBy     User                  @relation("CompanyCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  memberships   CompanyMembership[]
-  problems      Problem[]
-  assessments   Assessment[]
-  payments      Payment[]
-  creditBalance CompanyCreditBalance?
-  creditLedger  CreditLedger[]
-  auditLogs     AuditLog[]
+  createdBy           User                  @relation("CompanyCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  memberships         CompanyMembership[]
+  problems            Problem[]
+  assessments         Assessment[]
+  payments            Payment[]
+  creditBalance       CompanyCreditBalance?
+  creditLedger        CreditLedger[]
+  auditLogs           AuditLog[]
+  recruitmentPrograms RecruitmentProgram[]
 
   @@index([status, deletedAt])
   @@index([createdById])
@@ -377,11 +444,12 @@ model Assessment {
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
-  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  createdBy   User             @relation("AssessmentCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  items       AssessmentItem[]
-  invitations Invitation[]
-  attempts    Attempt[]
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy         User               @relation("AssessmentCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  items             AssessmentItem[]
+  invitations       Invitation[]
+  attempts          Attempt[]
+  recruitmentStages RecruitmentStage[]
 
   @@index([companyId, status, deletedAt])
   @@index([createdById])
@@ -420,17 +488,217 @@ model Invitation {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  assessment   Assessment    @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
-  candidate    User          @relation("InvitationCandidate", fields: [candidateId], references: [id], onDelete: Restrict)
-  invitedBy    User          @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: Restrict)
-  creditLedger CreditLedger? @relation("InvitationCredit", fields: [creditLedgerId], references: [id], onDelete: SetNull)
-  attempt      Attempt?
+  assessment               Assessment              @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  candidate                User                    @relation("InvitationCandidate", fields: [candidateId], references: [id], onDelete: Restrict)
+  invitedBy                User                    @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: Restrict)
+  creditLedger             CreditLedger?           @relation("InvitationCredit", fields: [creditLedgerId], references: [id], onDelete: SetNull)
+  attempt                  Attempt?
+  candidateStageProgressId String?                 @unique
+  candidateStageProgress   CandidateStageProgress? @relation(fields: [candidateStageProgressId], references: [id], onDelete: SetNull)
 
-  @@unique([assessmentId, candidateId])
   @@index([candidateId, status])
   @@index([assessmentId, status])
   @@index([status, expiresAt])
   @@map("invitations")
+}
+
+model RecruitmentProgram {
+  id          String                   @id @default(cuid())
+  companyId   String
+  createdById String
+  title       String                   @db.VarChar(200)
+  position    String                   @db.VarChar(160)
+  description String?                  @db.Text
+  status      RecruitmentProgramStatus @default(DRAFT)
+  creditCost  Int                      @default(1)
+  startedAt   DateTime?
+  closedAt    DateTime?
+  deletedAt   DateTime?
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  company      Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy    User                   @relation("ProgramCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  members      ProgramMember[]
+  invitations  ProgramInvitation[]
+  stages       RecruitmentStage[]
+  applications CandidateApplication[]
+
+  @@unique([companyId, title])
+  @@index([companyId, status, deletedAt])
+  @@map("recruitment_programs")
+}
+
+model ProgramMember {
+  id        String            @id @default(cuid())
+  programId String
+  userId    String
+  role      ProgramMemberRole
+  joinedAt  DateTime          @default(now())
+  createdAt DateTime          @default(now())
+
+  program RecruitmentProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([programId, userId])
+  @@index([userId, role])
+  @@map("program_members")
+}
+
+model ProgramInvitation {
+  id           String                  @id @default(cuid())
+  programId    String
+  invitedById  String
+  acceptedById String?
+  email        String                  @db.VarChar(320)
+  type         ProgramInvitationType
+  memberRole   ProgramMemberRole?
+  tokenHash    String                  @unique @db.VarChar(128)
+  status       ProgramInvitationStatus @default(PENDING)
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  program    RecruitmentProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  invitedBy  User               @relation("ProgramInvitationSender", fields: [invitedById], references: [id], onDelete: Restrict)
+  acceptedBy User?              @relation("ProgramInvitationAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+
+  @@unique([programId, email, type])
+  @@index([email, status, expiresAt])
+  @@map("program_invitations")
+}
+
+model RecruitmentStage {
+  id                   String               @id @default(cuid())
+  programId            String
+  assessmentId         String?
+  name                 String               @db.VarChar(160)
+  description          String?              @db.Text
+  type                 RecruitmentStageType
+  order                Int
+  minimumScore         Decimal?             @db.Decimal(5, 2)
+  requiresLeadDecision Boolean              @default(true)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  program    RecruitmentProgram       @relation(fields: [programId], references: [id], onDelete: Cascade)
+  assessment Assessment?              @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  assignees  StageAssignee[]
+  progress   CandidateStageProgress[]
+
+  @@unique([programId, order])
+  @@index([programId, type])
+  @@index([assessmentId])
+  @@map("recruitment_stages")
+}
+
+model StageAssignee {
+  id        String   @id @default(cuid())
+  stageId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  stage RecruitmentStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  user  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, userId])
+  @@index([userId])
+  @@map("stage_assignees")
+}
+
+model CandidateApplication {
+  id             String                     @id @default(cuid())
+  programId      String
+  candidateId    String
+  status         CandidateApplicationStatus @default(ACTIVE)
+  currentStageId String?
+  appliedAt      DateTime                   @default(now())
+  completedAt    DateTime?
+  rejectedAt     DateTime?
+  hiredAt        DateTime?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  program   RecruitmentProgram       @relation(fields: [programId], references: [id], onDelete: Restrict)
+  candidate User                     @relation("ApplicationCandidate", fields: [candidateId], references: [id], onDelete: Restrict)
+  stages    CandidateStageProgress[]
+
+  @@unique([programId, candidateId])
+  @@index([programId, status])
+  @@index([candidateId, status])
+  @@index([currentStageId])
+  @@map("candidate_applications")
+}
+
+model CandidateStageProgress {
+  id             String               @id @default(cuid())
+  applicationId  String
+  stageId        String
+  status         CandidateStageStatus @default(LOCKED)
+  aggregateScore Decimal?             @db.Decimal(7, 2)
+  finalDecision  StageDecision?
+  finalizedById  String?
+  finalizedAt    DateTime?
+  availableAt    DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  application          CandidateApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  stage                RecruitmentStage     @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  finalizedBy          User?                @relation("StageFinalizer", fields: [finalizedById], references: [id], onDelete: SetNull)
+  reviews              StageReview[]
+  schedules            InterviewSchedule[]
+  assessmentInvitation Invitation?
+
+  @@unique([applicationId, stageId])
+  @@index([stageId, status])
+  @@index([applicationId, status])
+  @@map("candidate_stage_progress")
+}
+
+model StageReview {
+  id                    String        @id @default(cuid())
+  stageProgressId       String
+  reviewerId            String
+  score                 Decimal       @db.Decimal(7, 2)
+  decision              StageDecision
+  candidateFeedback     String?       @db.Text
+  encryptedPrivateNotes String?       @db.Text
+  submittedAt           DateTime      @default(now())
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  stageProgress CandidateStageProgress @relation(fields: [stageProgressId], references: [id], onDelete: Cascade)
+  reviewer      User                   @relation("StageReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+
+  @@unique([stageProgressId, reviewerId])
+  @@index([reviewerId, submittedAt])
+  @@map("stage_reviews")
+}
+
+model InterviewSchedule {
+  id              String    @id @default(cuid())
+  stageProgressId String
+  scheduledById   String
+  startsAt        DateTime
+  endsAt          DateTime
+  timezone        String    @db.VarChar(80)
+  meetingUrl      String?   @db.Text
+  location        String?   @db.VarChar(300)
+  cancelledAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  stageProgress CandidateStageProgress @relation(fields: [stageProgressId], references: [id], onDelete: Cascade)
+  scheduledBy   User                   @relation("InterviewScheduler", fields: [scheduledById], references: [id], onDelete: Restrict)
+
+  @@index([stageProgressId, startsAt])
+  @@index([startsAt, cancelledAt])
+  @@map("interview_schedules")
 }
 
 model Attempt {

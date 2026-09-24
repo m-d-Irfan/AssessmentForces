@@ -11,7 +11,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: env.APP_NAME,
-    version: "0.11.0",
+    version: "1.0.0",
     description: "Backend API for developer assessments, authentication, and recruiter workflows.",
   },
   servers: [{ url: `http://localhost:${env.PORT}`, description: "Local development" }],
@@ -28,6 +28,7 @@ export const openApiDocument = {
     { name: "Results", description: "Result review, controlled release, and candidate access" },
     { name: "Notifications", description: "Authenticated user notification inbox" },
     { name: "Analytics", description: "Role-specific performance and platform dashboards" },
+    { name: "Recruitment", description: "Secure multi-stage recruitment programs and reviews" },
   ],
   components: {
     securitySchemes: {
@@ -438,25 +439,6 @@ export const openApiDocument = {
         responses: { "200": ok },
       },
     },
-    [`${env.API_PREFIX}/invitations`]: {
-      post: {
-        tags: ["Invitations"],
-        summary: "Invite a registered candidate and consume one company credit",
-        security: bearer,
-        requestBody: jsonBody({ $ref: "#/components/schemas/CreateInvitationRequest" }),
-        responses: {
-          "201": ok,
-          "402": { description: "Company has insufficient credits" },
-          "409": { description: "Candidate was already invited" },
-        },
-      },
-      get: {
-        tags: ["Invitations"],
-        summary: "List company invitations",
-        security: bearer,
-        responses: { "200": ok },
-      },
-    },
     [`${env.API_PREFIX}/invitations/mine`]: {
       get: {
         tags: ["Invitations"],
@@ -472,22 +454,6 @@ export const openApiDocument = {
         security: bearer,
         parameters: [{ name: "token", in: "path", required: true, schema: { type: "string" } }],
         responses: { "200": ok, "404": { description: "Invitation not found" } },
-      },
-    },
-    [`${env.API_PREFIX}/invitations/{id}`]: {
-      get: {
-        tags: ["Invitations"],
-        summary: "Get a company invitation",
-        security: bearer,
-        responses: { "200": ok },
-      },
-    },
-    [`${env.API_PREFIX}/invitations/{id}/revoke`]: {
-      post: {
-        tags: ["Invitations"],
-        summary: "Revoke a pending invitation and refund its credit",
-        security: bearer,
-        responses: { "200": ok, "409": { description: "Invitation cannot be revoked" } },
       },
     },
     [`${env.API_PREFIX}/attempts/start`]: {
@@ -728,6 +694,159 @@ export const openApiDocument = {
         summary: "Get administrator platform metrics",
         security: bearer,
         responses: { "200": ok, "403": { description: "Administrator role required" } },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs`]: {
+      post: {
+        tags: ["Recruitment"],
+        summary: "Create a draft recruitment program and become its lead recruiter",
+        security: bearer,
+        responses: { "201": ok },
+      },
+      get: {
+        tags: ["Recruitment"],
+        summary: "List recruitment programs available through program membership",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs/{id}`]: {
+      get: {
+        tags: ["Recruitment"],
+        summary: "Get a program with role-filtered stage information",
+        security: bearer,
+        responses: { "200": ok, "403": { description: "Program membership required" } },
+      },
+      patch: {
+        tags: ["Recruitment"],
+        summary: "Edit a draft program as its lead recruiter",
+        security: bearer,
+        responses: { "200": ok, "409": { description: "Program has already started" } },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs/{id}/stages`]: {
+      post: {
+        tags: ["Recruitment"],
+        summary: "Create an assigned coding, technical, HR, or final-decision stage",
+        security: bearer,
+        responses: { "201": ok },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs/{id}/stages/order`]: {
+      put: {
+        tags: ["Recruitment"],
+        summary: "Reorder all stages while the program is still a draft",
+        security: bearer,
+        responses: { "200": ok, "409": { description: "Stage ordering is locked" } },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs/{id}/stages/{stageId}/assignees`]: {
+      put: {
+        tags: ["Recruitment"],
+        summary: "Assign accepted program members to a draft stage",
+        description:
+          "HR members can only be assigned to HR stages; HR cannot be assigned to technical stages.",
+        security: bearer,
+        responses: { "200": ok, "409": { description: "Stage assignments are locked" } },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs/{id}/start`]: {
+      post: {
+        tags: ["Recruitment"],
+        summary: "Start and lock a program, charging its company credit cost once",
+        security: bearer,
+        responses: { "200": ok, "402": { description: "Insufficient company credits" } },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs/{id}/invitations`]: {
+      post: {
+        tags: ["Recruitment"],
+        summary: "Email a candidate or program-member invitation",
+        description: "The recipient may sign in or create an account before accepting.",
+        security: bearer,
+        responses: { "201": ok },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs/invitations/{token}`]: {
+      get: {
+        tags: ["Recruitment"],
+        summary: "Preview a program invitation after signing in with its recipient email",
+        security: bearer,
+        responses: { "200": ok, "404": { description: "Invitation is invalid or expired" } },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs/invitations/{token}/accept`]: {
+      post: {
+        tags: ["Recruitment"],
+        summary: "Accept a candidate or team-member program invitation",
+        security: bearer,
+        responses: { "200": ok, "403": { description: "Email or account role mismatch" } },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs/my-applications`]: {
+      get: {
+        tags: ["Recruitment"],
+        summary: "Get the candidate's program and stage progress",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs/{id}/applications`]: {
+      get: {
+        tags: ["Recruitment"],
+        summary: "List shared candidate progress for technical and lead recruiters",
+        security: bearer,
+        responses: { "200": ok, "403": { description: "HR members must use assigned tasks" } },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs/{id}/applications/{applicationId}`]: {
+      get: {
+        tags: ["Recruitment"],
+        summary: "Get a candidate's complete stage history without assessment questions",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs/tasks/mine`]: {
+      get: {
+        tags: ["Recruitment"],
+        summary: "List only stages assigned to the authenticated reviewer",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs/tasks/{progressId}`]: {
+      get: {
+        tags: ["Recruitment"],
+        summary: "Get an assigned stage task and prior-stage score summaries",
+        description: "HR responses never contain assessments, questions, answers, or test cases.",
+        security: bearer,
+        responses: { "200": ok, "403": { description: "Stage assignment required" } },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs/tasks/{progressId}/reviews`]: {
+      post: {
+        tags: ["Recruitment"],
+        summary: "Submit an immutable reviewer-owned score and pass/fail recommendation",
+        security: bearer,
+        responses: { "201": ok, "409": { description: "Reviewer already submitted" } },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs/tasks/{progressId}/schedule`]: {
+      post: {
+        tags: ["Recruitment"],
+        summary: "Schedule or reschedule an assigned interview stage",
+        security: bearer,
+        responses: { "201": ok },
+      },
+    },
+    [`${env.API_PREFIX}/recruitment-programs/tasks/{progressId}/finalize`]: {
+      post: {
+        tags: ["Recruitment"],
+        summary: "Explicitly advance or reject a candidate as lead recruiter",
+        description: "Reviewer scores never advance a candidate automatically.",
+        security: bearer,
+        responses: { "200": ok, "403": { description: "Lead recruiter role required" } },
       },
     },
   },

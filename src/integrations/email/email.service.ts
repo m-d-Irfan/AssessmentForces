@@ -53,3 +53,16 @@ export function sendAssessmentInvitationEmail(
     `You have been invited to complete "${assessmentTitle}". Open this link before ${expiresAt.toISOString()}: ${invitationUrl}`,
   );
 }
+
+export function sendRecruitmentProgramInvitationEmail(
+  email: string,
+  programTitle: string,
+  invitationUrl: string,
+  kind: "candidate" | "team member",
+): Promise<boolean> {
+  return deliver(
+    email,
+    `Invitation to ${programTitle}`,
+    `You have been invited to join “${programTitle}” as a ${kind}. Sign in or create an account, then open: ${invitationUrl}`,
+  );
+}

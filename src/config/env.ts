@@ -4,6 +4,7 @@ import { z } from "zod";
 const nodeEnv = process.env.NODE_ENV ?? "development";
 const localDatabaseUrl = "postgresql://postgres:postgres@localhost:5432/dev_assess?schema=public";
 const developmentJwtSecret = "development-only-secret-change-before-production";
+const developmentEncryptionKey = "development-only-private-note-encryption-key-change-me";
 const optionalString = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.string().min(1).optional(),
@@ -26,6 +27,7 @@ const envSchema = z
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
     JWT_ACCESS_SECRET: z.string().min(32).default(developmentJwtSecret),
+    SENSITIVE_DATA_ENCRYPTION_KEY: z.string().min(32).default(developmentEncryptionKey),
     JWT_ACCESS_TTL_MINUTES: z.coerce.number().int().positive().max(1440).default(15),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().max(90).default(30),
     REFRESH_COOKIE_NAME: z.string().min(1).default("devassess_refresh"),
@@ -58,6 +60,16 @@ const envSchema = z
         code: "custom",
         path: ["JWT_ACCESS_SECRET"],
         message: "A production JWT secret must be configured",
+      });
+    }
+    if (
+      values.NODE_ENV === "production" &&
+      values.SENSITIVE_DATA_ENCRYPTION_KEY === developmentEncryptionKey
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["SENSITIVE_DATA_ENCRYPTION_KEY"],
+        message: "A production private-data encryption key must be configured",
       });
     }
 

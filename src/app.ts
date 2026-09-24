@@ -20,6 +20,7 @@ import { invitationRouter } from "./modules/invitations/invitation.route.js";
 import { notificationRouter } from "./modules/notifications/notification.route.js";
 import { paymentRouter } from "./modules/payments/payment.route.js";
 import { problemRouter } from "./modules/problems/problem.route.js";
+import { recruitmentRouter } from "./modules/recruitment/recruitment.route.js";
 import { resultRouter } from "./modules/results/result.route.js";
 import { systemRouter } from "./modules/system/system.route.js";
 
@@ -65,6 +66,7 @@ export function createApp(): Express {
   apiRouter.use("/notifications", notificationRouter);
   apiRouter.use("/problems", problemRouter);
   apiRouter.use("/results", resultRouter);
+  apiRouter.use("/recruitment-programs", recruitmentRouter);
   apiRouter.use("/assessments", assessmentRouter);
   apiRouter.use("/attempts", attemptRouter);
   apiRouter.use(paymentRouter);

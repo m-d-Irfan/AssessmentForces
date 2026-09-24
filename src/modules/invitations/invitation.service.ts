@@ -118,13 +118,8 @@ export async function createInvitation(input: CreateInvitationInput, actor: Invi
   const token = createOpaqueToken(32);
   const invitationId = randomUUID();
   const invitation = await serializable(async (tx) => {
-    const duplicate = await tx.invitation.findUnique({
-      where: {
-        assessmentId_candidateId: {
-          assessmentId: assessment.id,
-          candidateId: candidate.id,
-        },
-      },
+    const duplicate = await tx.invitation.findFirst({
+      where: { assessmentId: assessment.id, candidateId: candidate.id },
       select: { id: true },
     });
     if (duplicate) {

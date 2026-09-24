@@ -1,6 +1,7 @@
 import {
   AssessmentStatus,
   AttemptStatus,
+  CandidateStageStatus,
   EvaluationStatus,
   InvitationStatus,
   Prisma,
@@ -87,6 +88,16 @@ async function autoSubmitIfExpired(attempt: {
       create: { attemptId: attempt.id, status: EvaluationStatus.PENDING },
       update: {},
     });
+    const link = await prisma.invitation.findFirst({
+      where: { attempt: { id: attempt.id } },
+      select: { candidateStageProgressId: true },
+    });
+    if (link?.candidateStageProgressId) {
+      await prisma.candidateStageProgress.update({
+        where: { id: link.candidateStageProgressId },
+        data: { status: CandidateStageStatus.AWAITING_REVIEW },
+      });
+    }
     return true;
   }
   return false;
@@ -164,6 +175,12 @@ export async function startAttempt(invitationToken: string, candidateId: string)
         },
       });
     });
+    if (invitation.candidateStageProgressId) {
+      await prisma.candidateStageProgress.update({
+        where: { id: invitation.candidateStageProgressId },
+        data: { status: CandidateStageStatus.IN_PROGRESS, startedAt: now },
+      });
+    }
     return getCandidateAttempt(attempt.id, candidateId);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -266,6 +283,18 @@ export async function submitAttempt(attemptId: string, candidateId: string) {
       await tx.evaluation.create({
         data: { attemptId: attempt.id, status: EvaluationStatus.PENDING },
       });
+      const linkedInvitation = await tx.invitation.findUnique({
+        where: {
+          id: (await tx.attempt.findUniqueOrThrow({ where: { id: attempt.id } })).invitationId,
+        },
+        select: { candidateStageProgressId: true },
+      });
+      if (linkedInvitation?.candidateStageProgressId) {
+        await tx.candidateStageProgress.update({
+          where: { id: linkedInvitation.candidateStageProgressId },
+          data: { status: CandidateStageStatus.AWAITING_REVIEW },
+        });
+      }
     }
   });
   return getCandidateAttempt(attempt.id, candidateId);
@@ -298,6 +327,16 @@ export async function autoSubmitForTabChange(attemptId: string, candidateId: str
           notes: "Automatically submitted because the candidate changed tabs or hid the page.",
         },
       });
+      const link = await tx.invitation.findFirst({
+        where: { attempt: { id: attempt.id } },
+        select: { candidateStageProgressId: true },
+      });
+      if (link?.candidateStageProgressId) {
+        await tx.candidateStageProgress.update({
+          where: { id: link.candidateStageProgressId },
+          data: { status: CandidateStageStatus.AWAITING_REVIEW },
+        });
+      }
     }
   });
   return getCandidateAttempt(attempt.id, candidateId);

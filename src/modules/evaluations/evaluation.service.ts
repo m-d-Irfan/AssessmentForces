@@ -1,8 +1,10 @@
 import {
   AttemptStatus,
   EvaluationStatus,
+  MembershipStatus,
   Prisma,
   ProblemType,
+  ProgramMemberRole,
   type UserRole,
 } from "@prisma/client";
 import { prisma } from "../../config/database.js";
@@ -55,8 +57,51 @@ async function evaluationForActor(id: string, actor: EvaluationActor) {
     include: evaluationInclude,
   });
   if (!evaluation) throw new AppError(404, "EVALUATION_NOT_FOUND", "Evaluation not found");
-  await requireCompanyAccess(actor.actorId, actor.role, evaluation.attempt.assessment.companyId);
+  await requireEvaluationAccess(
+    actor,
+    evaluation.attempt.assessment.companyId,
+    evaluation.attemptId,
+  );
   return evaluation;
+}
+
+async function requireEvaluationAccess(
+  actor: EvaluationActor,
+  companyId: string,
+  attemptId: string,
+): Promise<void> {
+  if (actor.role === "ADMIN") return;
+  const [companyMember, programMember] = await prisma.$transaction([
+    prisma.companyMembership.findFirst({
+      where: { companyId, userId: actor.actorId, status: MembershipStatus.ACTIVE },
+      select: { id: true },
+    }),
+    prisma.programMember.findFirst({
+      where: {
+        userId: actor.actorId,
+        program: {
+          stages: {
+            some: {
+              progress: {
+                some: { assessmentInvitation: { is: { attempt: { is: { id: attemptId } } } } },
+              },
+            },
+          },
+        },
+      },
+      select: { id: true, role: true },
+    }),
+  ]);
+  if (programMember?.role === ProgramMemberRole.HR) {
+    throw new AppError(
+      403,
+      "TECHNICAL_CONTENT_DENIED",
+      "HR members cannot access assessments, questions, answers, or test cases",
+    );
+  }
+  if (!companyMember && !programMember) {
+    throw new AppError(403, "EVALUATION_ACCESS_DENIED", "You cannot access this evaluation");
+  }
 }
 
 function selectedOptions(response: Prisma.JsonValue | null): string[] {
@@ -127,15 +172,41 @@ function gradeObjectiveAnswer(
 export async function listEvaluations(query: EvaluationListQuery, actor: EvaluationActor) {
   const companyIds = await accessibleCompanyIds(actor.actorId, actor.role);
   if (query.companyId) await requireCompanyAccess(actor.actorId, actor.role, query.companyId);
-  const where: Prisma.EvaluationWhereInput = {
-    ...(query.status ? { status: query.status } : {}),
+  const companyScope: Prisma.EvaluationWhereInput = {
     attempt: {
-      ...(query.assessmentId ? { assessmentId: query.assessmentId } : {}),
       assessment: query.companyId
         ? { companyId: query.companyId }
         : companyIds
           ? { companyId: { in: companyIds } }
           : {},
+    },
+  };
+  const programScope: Prisma.EvaluationWhereInput = {
+    attempt: {
+      invitation: {
+        candidateStageProgress: {
+          stage: {
+            program: {
+              members: {
+                some: {
+                  userId: actor.actorId,
+                  role: {
+                    in: [ProgramMemberRole.LEAD_RECRUITER, ProgramMemberRole.TECHNICAL_RECRUITER],
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+  const where: Prisma.EvaluationWhereInput = {
+    ...(query.status ? { status: query.status } : {}),
+    ...(actor.role === "ADMIN" ? {} : { OR: [companyScope, programScope] }),
+    attempt: {
+      ...(query.assessmentId ? { assessmentId: query.assessmentId } : {}),
+      ...(query.companyId ? { assessment: { companyId: query.companyId } } : {}),
     },
   };
   const [items, total] = await prisma.$transaction([
