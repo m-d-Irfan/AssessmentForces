@@ -11,7 +11,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: env.APP_NAME,
-    version: "1.1.0",
+    version: "1.2.0",
     description: "Backend API for developer assessments, authentication, and recruiter workflows.",
   },
   servers: [{ url: `http://localhost:${env.PORT}`, description: "Local development" }],
@@ -109,7 +109,11 @@ export const openApiDocument = {
   },
   paths: {
     "/health": {
-      get: { tags: ["System"], summary: "Liveness check", responses: { "200": ok } },
+      get: {
+        tags: ["System"],
+        summary: "Liveness and background-maintenance status",
+        responses: { "200": ok },
+      },
     },
     "/ready": {
       get: {

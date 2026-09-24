@@ -4,17 +4,20 @@ import { disconnectDatabase } from "./config/database.js";
 import { env } from "./config/env.js";
 import { logger } from "./config/logger.js";
 import { disconnectRedis } from "./config/redis.js";
+import { startMaintenanceJobs, stopMaintenanceJobs } from "./jobs/maintenance.job.js";
 
 const server = createServer(createApp());
 let shuttingDown = false;
 
 server.listen(env.PORT, () => {
   logger.info({ port: env.PORT, environment: env.NODE_ENV }, `${env.APP_NAME} is running`);
+  startMaintenanceJobs();
 });
 
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
+  stopMaintenanceJobs();
   logger.info({ signal }, "Graceful shutdown started");
 
   server.close(async (closeError) => {

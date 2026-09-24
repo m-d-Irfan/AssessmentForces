@@ -26,6 +26,12 @@ const envSchema = z
       .default("info"),
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+    MAINTENANCE_JOBS_ENABLED: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((value) => value === "true"),
+    MAINTENANCE_JOB_INTERVAL_MS: z.coerce.number().int().min(10_000).default(60_000),
+    MAINTENANCE_JOB_BATCH_SIZE: z.coerce.number().int().positive().max(1_000).default(100),
     JWT_ACCESS_SECRET: z.string().min(32).default(developmentJwtSecret),
     SENSITIVE_DATA_ENCRYPTION_KEY: z.string().min(32).default(developmentEncryptionKey),
     JWT_ACCESS_TTL_MINUTES: z.coerce.number().int().positive().max(1440).default(15),

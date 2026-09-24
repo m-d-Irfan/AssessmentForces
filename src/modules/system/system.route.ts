@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { checkDatabaseConnection } from "../../config/database.js";
 import { checkRedisConnection } from "../../config/redis.js";
+import { maintenanceJobStatus } from "../../jobs/maintenance.job.js";
 import { sendSuccess } from "../../shared/responses/api-response.js";
 
 export const systemRouter = Router();
@@ -8,7 +9,11 @@ export const systemRouter = Router();
 systemRouter.get("/health", (_request, response) =>
   sendSuccess(response, {
     message: "API is healthy",
-    data: { status: "up", uptimeSeconds: Math.floor(process.uptime()) },
+    data: {
+      status: "up",
+      uptimeSeconds: Math.floor(process.uptime()),
+      maintenanceJobs: maintenanceJobStatus(),
+    },
   }),
 );
 
