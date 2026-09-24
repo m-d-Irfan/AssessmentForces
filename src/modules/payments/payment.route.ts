@@ -40,26 +40,45 @@ paymentRouter.post(
 );
 paymentRouter.use("/payments/bkash", paymentRateLimit);
 
-paymentRouter.use(authenticate, authorize(UserRole.RECRUITER, UserRole.ADMIN));
 paymentRouter.post(
   "/payments/bkash/initiate",
+  authenticate,
+  authorize(UserRole.RECRUITER, UserRole.ADMIN),
   validate({ body: initiatePaymentBodySchema }),
   initiatePaymentHandler,
 );
-paymentRouter.get("/payments", validate({ query: paymentListQuerySchema }), listPaymentsHandler);
-paymentRouter.get("/payments/:id", validate({ params: paymentIdParamsSchema }), getPaymentHandler);
+paymentRouter.get(
+  "/payments",
+  authenticate,
+  authorize(UserRole.RECRUITER, UserRole.ADMIN),
+  validate({ query: paymentListQuerySchema }),
+  listPaymentsHandler,
+);
+paymentRouter.get(
+  "/payments/:id",
+  authenticate,
+  authorize(UserRole.RECRUITER, UserRole.ADMIN),
+  validate({ params: paymentIdParamsSchema }),
+  getPaymentHandler,
+);
 paymentRouter.post(
   "/payments/:id/reconcile",
+  authenticate,
+  authorize(UserRole.RECRUITER, UserRole.ADMIN),
   validate({ params: paymentIdParamsSchema }),
   reconcilePaymentHandler,
 );
 paymentRouter.get(
   "/credits/balance",
+  authenticate,
+  authorize(UserRole.RECRUITER, UserRole.ADMIN),
   validate({ query: companyQuerySchema }),
   getCreditBalanceHandler,
 );
 paymentRouter.get(
   "/credits/ledger",
+  authenticate,
+  authorize(UserRole.RECRUITER, UserRole.ADMIN),
   validate({ query: ledgerListQuerySchema }),
   listCreditLedgerHandler,
 );

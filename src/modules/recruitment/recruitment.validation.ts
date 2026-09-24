@@ -43,7 +43,11 @@ export const createStageBodySchema = z.object({
 });
 
 export const reorderStagesBodySchema = z.object({
-  stageIds: z.array(z.string().min(1)).min(1).max(30),
+  stageIds: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(30)
+    .refine((values) => new Set(values).size === values.length, "Stage IDs must be unique"),
 });
 export const stageAssigneesBodySchema = z.object({
   assigneeIds: z.array(z.string().min(1)).min(1).max(50),

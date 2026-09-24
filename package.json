@@ -16,6 +16,8 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:http": "vitest run tests/http tests/system.test.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "prisma:generate": "prisma generate",
