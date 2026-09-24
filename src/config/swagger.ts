@@ -11,7 +11,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: env.APP_NAME,
-    version: "0.10.0",
+    version: "0.11.0",
     description: "Backend API for developer assessments, authentication, and recruiter workflows.",
   },
   servers: [{ url: `http://localhost:${env.PORT}`, description: "Local development" }],
@@ -27,6 +27,7 @@ export const openApiDocument = {
     { name: "Evaluations", description: "Automatic and recruiter assessment grading" },
     { name: "Results", description: "Result review, controlled release, and candidate access" },
     { name: "Notifications", description: "Authenticated user notification inbox" },
+    { name: "Analytics", description: "Role-specific performance and platform dashboards" },
   ],
   components: {
     securitySchemes: {
@@ -691,6 +692,42 @@ export const openApiDocument = {
         summary: "Mark one owned notification as read",
         security: bearer,
         responses: { "200": ok, "404": { description: "Notification not found" } },
+      },
+    },
+    [`${env.API_PREFIX}/analytics/company`]: {
+      get: {
+        tags: ["Analytics"],
+        summary: "Get a company recruiter dashboard",
+        description: "Computed from PostgreSQL and cached in Redis for 60 seconds.",
+        security: bearer,
+        parameters: [
+          { name: "companyId", in: "query", required: true, schema: { type: "string" } },
+        ],
+        responses: { "200": ok, "403": { description: "Company access denied" } },
+      },
+    },
+    [`${env.API_PREFIX}/analytics/assessments/{assessmentId}`]: {
+      get: {
+        tags: ["Analytics"],
+        summary: "Get invitation, attempt, and performance analytics for an assessment",
+        security: bearer,
+        responses: { "200": ok, "404": { description: "Assessment not found" } },
+      },
+    },
+    [`${env.API_PREFIX}/analytics/candidate`]: {
+      get: {
+        tags: ["Analytics"],
+        summary: "Get the authenticated candidate's progress dashboard",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/analytics/admin`]: {
+      get: {
+        tags: ["Analytics"],
+        summary: "Get administrator platform metrics",
+        security: bearer,
+        responses: { "200": ok, "403": { description: "Administrator role required" } },
       },
     },
   },

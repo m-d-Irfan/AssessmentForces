@@ -11,6 +11,7 @@ import { errorHandler } from "./middlewares/error-handler.js";
 import { notFound } from "./middlewares/not-found.js";
 import { globalRateLimit } from "./middlewares/rate-limit.js";
 import { requestId } from "./middlewares/request-id.js";
+import { analyticsRouter } from "./modules/analytics/analytics.route.js";
 import { assessmentRouter } from "./modules/assessments/assessment.route.js";
 import { attemptRouter } from "./modules/attempts/attempt.route.js";
 import { authRouter } from "./modules/auth/auth.route.js";
@@ -57,6 +58,7 @@ export function createApp(): Express {
   app.get("/api-docs.json", (_request, response) => response.json(openApiDocument));
 
   const apiRouter = express.Router();
+  apiRouter.use("/analytics", analyticsRouter);
   apiRouter.use("/auth", authRouter);
   apiRouter.use("/evaluations", evaluationRouter);
   apiRouter.use("/invitations", invitationRouter);
