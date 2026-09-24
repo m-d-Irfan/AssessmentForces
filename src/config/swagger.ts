@@ -11,7 +11,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: env.APP_NAME,
-    version: "0.7.0",
+    version: "0.8.0",
     description: "Backend API for developer assessments, authentication, and recruiter workflows.",
   },
   servers: [{ url: `http://localhost:${env.PORT}`, description: "Local development" }],
@@ -24,6 +24,7 @@ export const openApiDocument = {
     { name: "Credits", description: "Credit packages, balances, and immutable ledger" },
     { name: "Invitations", description: "Credit-backed candidate assessment invitations" },
     { name: "Attempts", description: "Timed candidate assessment-taking workflow" },
+    { name: "Evaluations", description: "Automatic and recruiter assessment grading" },
   ],
   components: {
     securitySchemes: {
@@ -89,6 +90,14 @@ export const openApiDocument = {
           response: { description: "Choice or text response" },
           sourceCode: { type: "string" },
           language: { type: "string" },
+        },
+      },
+      GradeAnswerRequest: {
+        type: "object",
+        required: ["score"],
+        properties: {
+          score: { type: "number", minimum: 0 },
+          feedback: { type: "string", maxLength: 10000 },
         },
       },
     },
@@ -531,6 +540,59 @@ export const openApiDocument = {
           "The frontend calls this endpoint immediately after detecting a tab change or hidden page.",
         security: bearer,
         responses: { "200": ok, "404": { description: "Attempt not found" } },
+      },
+    },
+    [`${env.API_PREFIX}/evaluations`]: {
+      get: {
+        tags: ["Evaluations"],
+        summary: "List company-scoped evaluations",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/evaluations/{id}`]: {
+      get: {
+        tags: ["Evaluations"],
+        summary: "Get an evaluation with answers and grading material",
+        security: bearer,
+        responses: { "200": ok, "404": { description: "Evaluation not found" } },
+      },
+    },
+    [`${env.API_PREFIX}/evaluations/{id}/auto-grade`]: {
+      post: {
+        tags: ["Evaluations"],
+        summary: "Grade choice and configured short-text answers",
+        description:
+          "Choice responses use optionId or optionIds. Short-text grading uses answerConfig.acceptedAnswers and answerConfig.caseSensitive.",
+        security: bearer,
+        responses: { "200": ok, "409": { description: "Evaluation is already completed" } },
+      },
+    },
+    [`${env.API_PREFIX}/evaluations/{id}/answers/{answerId}`]: {
+      patch: {
+        tags: ["Evaluations"],
+        summary: "Manually grade an answer",
+        security: bearer,
+        requestBody: jsonBody({ $ref: "#/components/schemas/GradeAnswerRequest" }),
+        responses: {
+          "200": ok,
+          "400": { description: "Score exceeds available points" },
+        },
+      },
+    },
+    [`${env.API_PREFIX}/evaluations/{id}/finalize`]: {
+      post: {
+        tags: ["Evaluations"],
+        summary: "Finalize scores and create an unreleased candidate result",
+        security: bearer,
+        requestBody: jsonBody({
+          type: "object",
+          properties: { notes: { type: "string", maxLength: 20000 } },
+        }),
+        responses: {
+          "200": ok,
+          "409": { description: "One or more submitted answers still require grading" },
+        },
       },
     },
   },

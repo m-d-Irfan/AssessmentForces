@@ -14,6 +14,7 @@ import { requestId } from "./middlewares/request-id.js";
 import { assessmentRouter } from "./modules/assessments/assessment.route.js";
 import { attemptRouter } from "./modules/attempts/attempt.route.js";
 import { authRouter } from "./modules/auth/auth.route.js";
+import { evaluationRouter } from "./modules/evaluations/evaluation.route.js";
 import { invitationRouter } from "./modules/invitations/invitation.route.js";
 import { paymentRouter } from "./modules/payments/payment.route.js";
 import { problemRouter } from "./modules/problems/problem.route.js";
@@ -55,6 +56,7 @@ export function createApp(): Express {
 
   const apiRouter = express.Router();
   apiRouter.use("/auth", authRouter);
+  apiRouter.use("/evaluations", evaluationRouter);
   apiRouter.use("/invitations", invitationRouter);
   apiRouter.use("/problems", problemRouter);
   apiRouter.use("/assessments", assessmentRouter);
