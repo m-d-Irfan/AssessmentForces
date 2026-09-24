@@ -1,0 +1,669 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CANDIDATE
+  RECRUITER
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+}
+
+enum CompanyStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum CompanyMemberRole {
+  OWNER
+  RECRUITER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ProblemType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  SHORT_TEXT
+  CODE
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum ProblemStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AssessmentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum InvitationStatus {
+  PENDING
+  STARTED
+  EXPIRED
+  REVOKED
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  AUTO_SUBMITTED
+  EVALUATING
+  SCORED
+  RESULT_RELEASED
+}
+
+enum EvaluationStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum PaymentProvider {
+  BKASH
+}
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentEventType {
+  CREATE
+  CALLBACK
+  EXECUTE
+  QUERY
+  WEBHOOK
+  REFUND
+}
+
+enum CreditLedgerType {
+  PURCHASE
+  INVITATION_DEBIT
+  REFUND
+  ADMIN_ADJUSTMENT
+}
+
+model User {
+  id              String     @id @default(cuid())
+  email           String     @unique @db.VarChar(320)
+  passwordHash    String?    @db.VarChar(255)
+  displayName     String     @db.VarChar(120)
+  avatarUrl       String?    @db.Text
+  role            UserRole
+  status          UserStatus @default(PENDING_VERIFICATION)
+  emailVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  candidateProfile    CandidateProfile?
+  authAccounts        AuthAccount[]
+  refreshSessions     RefreshSession[]
+  verificationTokens  EmailVerificationToken[]
+  passwordResetTokens PasswordResetToken[]
+  companyMemberships  CompanyMembership[]
+  createdCompanies    Company[]                @relation("CompanyCreator")
+  createdProblems     Problem[]                @relation("ProblemCreator")
+  createdAssessments  Assessment[]             @relation("AssessmentCreator")
+  sentInvitations     Invitation[]             @relation("InvitationSender")
+  receivedInvitations Invitation[]             @relation("InvitationCandidate")
+  attempts            Attempt[]                @relation("AttemptCandidate")
+  gradedAnswers       Answer[]                 @relation("AnswerGrader")
+  evaluations         Evaluation[]             @relation("EvaluationEvaluator")
+  initiatedPayments   Payment[]                @relation("PaymentInitiator")
+  creditLedgerEntries CreditLedger[]           @relation("CreditLedgerActor")
+  auditLogs           AuditLog[]               @relation("AuditActor")
+  notifications       Notification[]
+
+  @@index([role, status])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model AuthAccount {
+  id                String       @id @default(cuid())
+  userId            String
+  provider          AuthProvider
+  providerAccountId String       @db.VarChar(255)
+  providerEmail     String?      @db.VarChar(320)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@unique([userId, provider])
+  @@index([userId])
+  @@map("auth_accounts")
+}
+
+model RefreshSession {
+  id           String    @id @default(cuid())
+  userId       String
+  familyId     String    @db.VarChar(64)
+  tokenHash    String    @unique @db.VarChar(128)
+  userAgent    String?   @db.Text
+  ipAddress    String?   @db.VarChar(64)
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  lastUsedAt   DateTime?
+  replacedById String?   @unique
+  createdAt    DateTime  @default(now())
+
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy RefreshSession? @relation("SessionRotation", fields: [replacedById], references: [id], onDelete: SetNull)
+  replaces   RefreshSession? @relation("SessionRotation")
+
+  @@index([userId, revokedAt])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_sessions")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique @db.VarChar(128)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("email_verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique @db.VarChar(128)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("password_reset_tokens")
+}
+
+model CandidateProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  headline        String?  @db.VarChar(160)
+  phone           String?  @db.VarChar(32)
+  yearsExperience Int?
+  skills          Json?
+  portfolioUrl    String?  @db.Text
+  githubUrl       String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("candidate_profiles")
+}
+
+model Company {
+  id          String        @id @default(cuid())
+  createdById String
+  name        String        @db.VarChar(160)
+  slug        String        @unique @db.VarChar(160)
+  description String?       @db.Text
+  websiteUrl  String?       @db.Text
+  logoUrl     String?       @db.Text
+  status      CompanyStatus @default(ACTIVE)
+  verifiedAt  DateTime?
+  deletedAt   DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  createdBy     User                  @relation("CompanyCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  memberships   CompanyMembership[]
+  problems      Problem[]
+  assessments   Assessment[]
+  payments      Payment[]
+  creditBalance CompanyCreditBalance?
+  creditLedger  CreditLedger[]
+  auditLogs     AuditLog[]
+
+  @@index([status, deletedAt])
+  @@index([createdById])
+  @@map("companies")
+}
+
+model CompanyMembership {
+  id        String            @id @default(cuid())
+  companyId String
+  userId    String
+  role      CompanyMemberRole @default(RECRUITER)
+  status    MembershipStatus  @default(ACTIVE)
+  joinedAt  DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId])
+  @@index([userId, status])
+  @@map("company_memberships")
+}
+
+model Problem {
+  id                   String        @id @default(cuid())
+  companyId            String
+  creatorId            String
+  title                String        @db.VarChar(200)
+  type                 ProblemType
+  difficulty           Difficulty
+  status               ProblemStatus @default(DRAFT)
+  currentVersionNumber Int           @default(1)
+  deletedAt            DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  creator  User             @relation("ProblemCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  versions ProblemVersion[]
+
+  @@unique([companyId, title])
+  @@index([companyId, status, deletedAt])
+  @@index([companyId, type, difficulty])
+  @@index([creatorId])
+  @@map("problems")
+}
+
+model ProblemVersion {
+  id               String   @id @default(cuid())
+  problemId        String
+  version          Int
+  prompt           String   @db.Text
+  explanation      String?  @db.Text
+  starterCode      String?  @db.Text
+  allowedLanguages Json?
+  answerConfig     Json?
+  createdAt        DateTime @default(now())
+
+  problem         Problem          @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  options         ProblemOption[]
+  testCases       TestCase[]
+  assessmentItems AssessmentItem[]
+
+  @@unique([problemId, version])
+  @@index([problemId])
+  @@map("problem_versions")
+}
+
+model ProblemOption {
+  id               String  @id @default(cuid())
+  problemVersionId String
+  label            String  @db.VarChar(16)
+  content          String  @db.Text
+  isCorrect        Boolean @default(false)
+  order            Int
+
+  problemVersion ProblemVersion @relation(fields: [problemVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([problemVersionId, order])
+  @@unique([problemVersionId, label])
+  @@map("problem_options")
+}
+
+model TestCase {
+  id               String  @id @default(cuid())
+  problemVersionId String
+  input            String  @db.Text
+  expectedOutput   String  @db.Text
+  isHidden         Boolean @default(true)
+  weight           Decimal @default(1) @db.Decimal(8, 2)
+  order            Int
+
+  problemVersion ProblemVersion @relation(fields: [problemVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([problemVersionId, order])
+  @@map("test_cases")
+}
+
+model Assessment {
+  id              String           @id @default(cuid())
+  companyId       String
+  createdById     String
+  title           String           @db.VarChar(200)
+  description     String?          @db.Text
+  instructions    String?          @db.Text
+  durationMinutes Int
+  passPercentage  Decimal          @default(60) @db.Decimal(5, 2)
+  totalPoints     Decimal          @default(0) @db.Decimal(10, 2)
+  status          AssessmentStatus @default(DRAFT)
+  availableFrom   DateTime?
+  availableUntil  DateTime?
+  publishedAt     DateTime?
+  archivedAt      DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy   User             @relation("AssessmentCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  items       AssessmentItem[]
+  invitations Invitation[]
+  attempts    Attempt[]
+
+  @@index([companyId, status, deletedAt])
+  @@index([createdById])
+  @@index([availableFrom, availableUntil])
+  @@map("assessments")
+}
+
+model AssessmentItem {
+  id               String  @id @default(cuid())
+  assessmentId     String
+  problemVersionId String
+  points           Decimal @db.Decimal(8, 2)
+  order            Int
+
+  assessment     Assessment     @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  problemVersion ProblemVersion @relation(fields: [problemVersionId], references: [id], onDelete: Restrict)
+  answers        Answer[]
+
+  @@unique([assessmentId, order])
+  @@unique([assessmentId, problemVersionId])
+  @@index([problemVersionId])
+  @@map("assessment_items")
+}
+
+model Invitation {
+  id             String           @id @default(cuid())
+  assessmentId   String
+  candidateId    String
+  invitedById    String
+  creditLedgerId String?          @unique
+  tokenHash      String           @unique @db.VarChar(128)
+  status         InvitationStatus @default(PENDING)
+  expiresAt      DateTime
+  startedAt      DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  assessment   Assessment    @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  candidate    User          @relation("InvitationCandidate", fields: [candidateId], references: [id], onDelete: Restrict)
+  invitedBy    User          @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: Restrict)
+  creditLedger CreditLedger? @relation("InvitationCredit", fields: [creditLedgerId], references: [id], onDelete: SetNull)
+  attempt      Attempt?
+
+  @@unique([assessmentId, candidateId])
+  @@index([candidateId, status])
+  @@index([assessmentId, status])
+  @@index([status, expiresAt])
+  @@map("invitations")
+}
+
+model Attempt {
+  id           String        @id @default(cuid())
+  invitationId String        @unique
+  assessmentId String
+  candidateId  String
+  status       AttemptStatus @default(IN_PROGRESS)
+  startedAt    DateTime      @default(now())
+  expiresAt    DateTime
+  submittedAt  DateTime?
+  totalScore   Decimal?      @db.Decimal(10, 2)
+  maximumScore Decimal       @db.Decimal(10, 2)
+  percentage   Decimal?      @db.Decimal(5, 2)
+  passed       Boolean?
+  lockVersion  Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  invitation Invitation  @relation(fields: [invitationId], references: [id], onDelete: Restrict)
+  assessment Assessment  @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  candidate  User        @relation("AttemptCandidate", fields: [candidateId], references: [id], onDelete: Restrict)
+  answers    Answer[]
+  evaluation Evaluation?
+  result     Result?
+
+  @@index([candidateId, status])
+  @@index([assessmentId, status])
+  @@index([status, expiresAt])
+  @@map("attempts")
+}
+
+model Answer {
+  id               String    @id @default(cuid())
+  attemptId        String
+  assessmentItemId String
+  response         Json?
+  sourceCode       String?   @db.Text
+  language         String?   @db.VarChar(64)
+  score            Decimal?  @db.Decimal(8, 2)
+  feedback         String?   @db.Text
+  isAutoGraded     Boolean   @default(false)
+  gradedById       String?
+  gradedAt         DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  attempt        Attempt        @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  assessmentItem AssessmentItem @relation(fields: [assessmentItemId], references: [id], onDelete: Restrict)
+  gradedBy       User?          @relation("AnswerGrader", fields: [gradedById], references: [id], onDelete: SetNull)
+
+  @@unique([attemptId, assessmentItemId])
+  @@index([assessmentItemId])
+  @@index([gradedById])
+  @@map("answers")
+}
+
+model Evaluation {
+  id          String           @id @default(cuid())
+  attemptId   String           @unique
+  evaluatorId String?
+  status      EvaluationStatus @default(PENDING)
+  autoScore   Decimal          @default(0) @db.Decimal(10, 2)
+  manualScore Decimal          @default(0) @db.Decimal(10, 2)
+  finalScore  Decimal?         @db.Decimal(10, 2)
+  notes       String?          @db.Text
+  startedAt   DateTime?
+  finalizedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  attempt   Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  evaluator User?   @relation("EvaluationEvaluator", fields: [evaluatorId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([evaluatorId])
+  @@map("evaluations")
+}
+
+model Result {
+  id           String    @id @default(cuid())
+  attemptId    String    @unique
+  score        Decimal   @db.Decimal(10, 2)
+  maximumScore Decimal   @db.Decimal(10, 2)
+  percentage   Decimal   @db.Decimal(5, 2)
+  passed       Boolean
+  summary      String?   @db.Text
+  releasedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([passed, releasedAt])
+  @@map("results")
+}
+
+model CreditPackage {
+  id          String    @id @default(cuid())
+  name        String    @unique @db.VarChar(120)
+  description String?   @db.Text
+  credits     Int
+  price       Decimal   @db.Decimal(12, 2)
+  currency    String    @default("BDT") @db.VarChar(3)
+  isActive    Boolean   @default(true)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  payments Payment[]
+
+  @@index([isActive, deletedAt])
+  @@map("credit_packages")
+}
+
+model Payment {
+  id                    String          @id @default(cuid())
+  companyId             String
+  initiatedById         String
+  creditPackageId       String
+  provider              PaymentProvider @default(BKASH)
+  status                PaymentStatus   @default(CREATED)
+  amount                Decimal         @db.Decimal(12, 2)
+  currency              String          @default("BDT") @db.VarChar(3)
+  credits               Int
+  merchantInvoiceNumber String          @unique @db.VarChar(100)
+  providerPaymentId     String?         @unique @db.VarChar(255)
+  providerTransactionId String?         @unique @db.VarChar(255)
+  providerStatus        String?         @db.VarChar(100)
+  failureReason         String?         @db.Text
+  metadata              Json?
+  completedAt           DateTime?
+  failedAt              DateTime?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  initiatedBy   User           @relation("PaymentInitiator", fields: [initiatedById], references: [id], onDelete: Restrict)
+  creditPackage CreditPackage  @relation(fields: [creditPackageId], references: [id], onDelete: Restrict)
+  events        PaymentEvent[]
+  ledgerEntries CreditLedger[]
+
+  @@index([companyId, status, createdAt])
+  @@index([initiatedById])
+  @@index([provider, status])
+  @@map("payments")
+}
+
+model PaymentEvent {
+  id             String           @id @default(cuid())
+  paymentId      String
+  type           PaymentEventType
+  idempotencyKey String?          @unique @db.VarChar(255)
+  providerStatus String?          @db.VarChar(100)
+  payload        Json?
+  createdAt      DateTime         @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId, createdAt])
+  @@map("payment_events")
+}
+
+model CompanyCreditBalance {
+  companyId        String   @id
+  availableCredits Int      @default(0)
+  lockVersion      Int      @default(0)
+  updatedAt        DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_credit_balances")
+}
+
+model CreditLedger {
+  id           String           @id @default(cuid())
+  companyId    String
+  paymentId    String?
+  createdById  String?
+  type         CreditLedgerType
+  amount       Int
+  balanceAfter Int
+  reference    String           @unique @db.VarChar(160)
+  metadata     Json?
+  createdAt    DateTime         @default(now())
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  payment    Payment?    @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  createdBy  User?       @relation("CreditLedgerActor", fields: [createdById], references: [id], onDelete: SetNull)
+  invitation Invitation? @relation("InvitationCredit")
+
+  @@index([companyId, createdAt])
+  @@index([paymentId])
+  @@index([createdById])
+  @@map("credit_ledger")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  companyId  String?
+  action     String   @db.VarChar(120)
+  entityType String   @db.VarChar(120)
+  entityId   String?  @db.VarChar(191)
+  before     Json?
+  after      Json?
+  ipAddress  String?  @db.VarChar(64)
+  userAgent  String?  @db.Text
+  requestId  String?  @db.VarChar(100)
+  createdAt  DateTime @default(now())
+
+  actor   User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt])
+  @@index([companyId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String    @db.VarChar(80)
+  title     String    @db.VarChar(180)
+  body      String    @db.Text
+  metadata  Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
+}

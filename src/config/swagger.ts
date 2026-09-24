@@ -1,0 +1,411 @@
+import { env } from "./env.js";
+
+const jsonBody = (schema: object) => ({
+  required: true,
+  content: { "application/json": { schema } },
+});
+const ok = { description: "Successful response" };
+const bearer = [{ bearerAuth: [] }];
+
+export const openApiDocument = {
+  openapi: "3.1.0",
+  info: {
+    title: env.APP_NAME,
+    version: "0.5.0",
+    description: "Backend API for developer assessments, authentication, and recruiter workflows.",
+  },
+  servers: [{ url: `http://localhost:${env.PORT}`, description: "Local development" }],
+  tags: [
+    { name: "System", description: "Service health and readiness" },
+    { name: "Authentication", description: "Local sessions, email verification, and Google OAuth" },
+    { name: "Problems", description: "Company question bank and immutable versions" },
+    { name: "Assessments", description: "Assessment composition and lifecycle" },
+    { name: "Payments", description: "bKash sandbox payments and reconciliation" },
+    { name: "Credits", description: "Credit packages, balances, and immutable ledger" },
+  ],
+  components: {
+    securitySchemes: {
+      bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
+      refreshCookie: { type: "apiKey", in: "cookie", name: env.REFRESH_COOKIE_NAME },
+    },
+    schemas: {
+      RegisterRequest: {
+        type: "object",
+        required: ["email", "password", "displayName", "role"],
+        properties: {
+          email: { type: "string", format: "email" },
+          password: { type: "string", minLength: 12, format: "password" },
+          displayName: { type: "string" },
+          role: { type: "string", enum: ["CANDIDATE", "RECRUITER"] },
+        },
+      },
+      ProblemVersionRequest: {
+        type: "object",
+        required: ["prompt"],
+        properties: {
+          prompt: { type: "string" },
+          explanation: { type: "string" },
+          starterCode: { type: "string" },
+          allowedLanguages: { type: "array", items: { type: "string" } },
+          answerConfig: { type: "object", additionalProperties: true },
+          options: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["label", "content", "isCorrect"],
+              properties: {
+                label: { type: "string" },
+                content: { type: "string" },
+                isCorrect: { type: "boolean" },
+              },
+            },
+          },
+          testCases: { type: "array", items: { type: "object", additionalProperties: true } },
+        },
+      },
+      InitiatePaymentRequest: {
+        type: "object",
+        required: ["companyId", "creditPackageId"],
+        properties: {
+          companyId: { type: "string" },
+          creditPackageId: { type: "string" },
+          payerReference: { type: "string", maxLength: 100 },
+        },
+      },
+    },
+  },
+  paths: {
+    "/health": {
+      get: { tags: ["System"], summary: "Liveness check", responses: { "200": ok } },
+    },
+    "/ready": {
+      get: {
+        tags: ["System"],
+        summary: "PostgreSQL and Redis readiness",
+        responses: { "200": ok, "503": { description: "A dependency is unavailable" } },
+      },
+    },
+    [`${env.API_PREFIX}/auth/register`]: {
+      post: {
+        tags: ["Authentication"],
+        summary: "Register a candidate or recruiter",
+        requestBody: jsonBody({ $ref: "#/components/schemas/RegisterRequest" }),
+        responses: { "201": ok, "409": { description: "Email already registered" } },
+      },
+    },
+    [`${env.API_PREFIX}/auth/login`]: {
+      post: {
+        tags: ["Authentication"],
+        summary: "Login with email and password",
+        requestBody: jsonBody({
+          type: "object",
+          required: ["email", "password"],
+          properties: { email: { type: "string", format: "email" }, password: { type: "string" } },
+        }),
+        responses: { "200": ok, "401": { description: "Invalid credentials" } },
+      },
+    },
+    [`${env.API_PREFIX}/auth/refresh`]: {
+      post: {
+        tags: ["Authentication"],
+        summary: "Rotate the refresh session and issue an access token",
+        security: [{ refreshCookie: [] }],
+        responses: { "200": ok, "401": { description: "Invalid or reused refresh token" } },
+      },
+    },
+    [`${env.API_PREFIX}/auth/logout`]: {
+      post: {
+        tags: ["Authentication"],
+        summary: "Revoke the refresh session",
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/auth/logout-all`]: {
+      post: {
+        tags: ["Authentication"],
+        summary: "Revoke every user session",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/auth/verify-email`]: {
+      post: {
+        tags: ["Authentication"],
+        summary: "Verify an email token",
+        requestBody: jsonBody({
+          type: "object",
+          required: ["token"],
+          properties: { token: { type: "string" } },
+        }),
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/auth/resend-verification`]: {
+      post: {
+        tags: ["Authentication"],
+        summary: "Request another verification token",
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/auth/forgot-password`]: {
+      post: {
+        tags: ["Authentication"],
+        summary: "Request a password reset token",
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/auth/reset-password`]: {
+      post: {
+        tags: ["Authentication"],
+        summary: "Reset a password and revoke sessions",
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/auth/google`]: {
+      get: {
+        tags: ["Authentication"],
+        summary: "Start Google OAuth with PKCE",
+        parameters: [
+          {
+            name: "role",
+            in: "query",
+            schema: { type: "string", enum: ["CANDIDATE", "RECRUITER"] },
+          },
+        ],
+        responses: { "302": { description: "Redirect to Google" } },
+      },
+    },
+    [`${env.API_PREFIX}/auth/google/callback`]: {
+      get: { tags: ["Authentication"], summary: "Complete Google OAuth", responses: { "200": ok } },
+    },
+    [`${env.API_PREFIX}/auth/me`]: {
+      get: {
+        tags: ["Authentication"],
+        summary: "Get the current user",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/problems`]: {
+      post: {
+        tags: ["Problems"],
+        summary: "Create a problem and its first version",
+        security: bearer,
+        requestBody: jsonBody({
+          type: "object",
+          required: ["companyId", "title", "type", "difficulty", "version"],
+          properties: {
+            companyId: { type: "string" },
+            title: { type: "string" },
+            type: {
+              type: "string",
+              enum: ["SINGLE_CHOICE", "MULTIPLE_CHOICE", "SHORT_TEXT", "CODE"],
+            },
+            difficulty: { type: "string", enum: ["EASY", "MEDIUM", "HARD"] },
+            version: { $ref: "#/components/schemas/ProblemVersionRequest" },
+          },
+        }),
+        responses: { "201": ok },
+      },
+      get: {
+        tags: ["Problems"],
+        summary: "List and filter problems",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/problems/{id}`]: {
+      get: {
+        tags: ["Problems"],
+        summary: "Get a problem",
+        security: bearer,
+        responses: { "200": ok },
+      },
+      patch: {
+        tags: ["Problems"],
+        summary: "Update problem metadata or status",
+        security: bearer,
+        responses: { "200": ok },
+      },
+      delete: {
+        tags: ["Problems"],
+        summary: "Soft-delete a problem",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/problems/{id}/versions`]: {
+      post: {
+        tags: ["Problems"],
+        summary: "Create an immutable problem version",
+        security: bearer,
+        requestBody: jsonBody({ $ref: "#/components/schemas/ProblemVersionRequest" }),
+        responses: { "201": ok },
+      },
+    },
+    [`${env.API_PREFIX}/assessments`]: {
+      post: {
+        tags: ["Assessments"],
+        summary: "Create a draft assessment",
+        security: bearer,
+        responses: { "201": ok },
+      },
+      get: {
+        tags: ["Assessments"],
+        summary: "List and filter assessments",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/assessments/{id}`]: {
+      get: {
+        tags: ["Assessments"],
+        summary: "Get an assessment",
+        security: bearer,
+        responses: { "200": ok },
+      },
+      patch: {
+        tags: ["Assessments"],
+        summary: "Update a draft assessment",
+        security: bearer,
+        responses: { "200": ok },
+      },
+      delete: {
+        tags: ["Assessments"],
+        summary: "Soft-delete a draft assessment",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/assessments/{id}/items`]: {
+      post: {
+        tags: ["Assessments"],
+        summary: "Add a published problem version",
+        security: bearer,
+        responses: { "201": ok },
+      },
+    },
+    [`${env.API_PREFIX}/assessments/{id}/items/{itemId}`]: {
+      patch: {
+        tags: ["Assessments"],
+        summary: "Update item points or order",
+        security: bearer,
+        responses: { "200": ok },
+      },
+      delete: {
+        tags: ["Assessments"],
+        summary: "Remove an assessment item",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/assessments/{id}/publish`]: {
+      post: {
+        tags: ["Assessments"],
+        summary: "Publish and freeze an assessment",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/assessments/{id}/archive`]: {
+      post: {
+        tags: ["Assessments"],
+        summary: "Archive a published assessment",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/credit-packages`]: {
+      get: {
+        tags: ["Credits"],
+        summary: "List active credit packages",
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/payments/bkash/initiate`]: {
+      post: {
+        tags: ["Payments"],
+        summary: "Create a bKash sandbox payment",
+        description: "Uses the package price and credit quantity stored by the server.",
+        security: bearer,
+        requestBody: jsonBody({ $ref: "#/components/schemas/InitiatePaymentRequest" }),
+        responses: { "201": ok, "503": { description: "bKash is not configured" } },
+      },
+    },
+    [`${env.API_PREFIX}/payments/bkash/callback`]: {
+      get: {
+        tags: ["Payments"],
+        summary: "Process the bKash checkout callback",
+        parameters: [
+          { name: "paymentID", in: "query", required: true, schema: { type: "string" } },
+          {
+            name: "status",
+            in: "query",
+            required: true,
+            schema: { type: "string", enum: ["success", "failure", "cancel"] },
+          },
+        ],
+        responses: { "200": ok, "409": { description: "Payment is not completed" } },
+      },
+    },
+    [`${env.API_PREFIX}/payments/bkash/webhook`]: {
+      post: {
+        tags: ["Payments"],
+        summary: "Receive and independently verify a bKash payment notification",
+        requestBody: jsonBody({
+          type: "object",
+          required: ["paymentID"],
+          properties: { paymentID: { type: "string" } },
+          additionalProperties: true,
+        }),
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/payments`]: {
+      get: {
+        tags: ["Payments"],
+        summary: "List company-scoped payment history",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/payments/{id}`]: {
+      get: {
+        tags: ["Payments"],
+        summary: "Get a payment and its provider events",
+        security: bearer,
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/payments/{id}/reconcile`]: {
+      post: {
+        tags: ["Payments"],
+        summary: "Query bKash and safely reconcile a pending payment",
+        security: bearer,
+        responses: { "200": ok, "409": { description: "Payment is not completed" } },
+      },
+    },
+    [`${env.API_PREFIX}/credits/balance`]: {
+      get: {
+        tags: ["Credits"],
+        summary: "Get a company credit balance",
+        security: bearer,
+        parameters: [
+          { name: "companyId", in: "query", required: true, schema: { type: "string" } },
+        ],
+        responses: { "200": ok },
+      },
+    },
+    [`${env.API_PREFIX}/credits/ledger`]: {
+      get: {
+        tags: ["Credits"],
+        summary: "List a company's immutable credit ledger",
+        security: bearer,
+        parameters: [
+          { name: "companyId", in: "query", required: true, schema: { type: "string" } },
+        ],
+        responses: { "200": ok },
+      },
+    },
+  },
+};
