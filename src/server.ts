@@ -7,6 +7,9 @@ import { disconnectRedis } from "./config/redis.js";
 import { startMaintenanceJobs, stopMaintenanceJobs } from "./jobs/maintenance.job.js";
 
 const server = createServer(createApp());
+server.requestTimeout = env.REQUEST_TIMEOUT_MS;
+server.headersTimeout = env.HEADERS_TIMEOUT_MS;
+server.keepAliveTimeout = env.KEEP_ALIVE_TIMEOUT_MS;
 let shuttingDown = false;
 
 server.listen(env.PORT, () => {

@@ -11,7 +11,7 @@ export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: env.APP_NAME,
-    version: "1.2.0",
+    version: "1.3.0",
     description: "Backend API for developer assessments, authentication, and recruiter workflows.",
   },
   servers: [{ url: `http://localhost:${env.PORT}`, description: "Local development" }],

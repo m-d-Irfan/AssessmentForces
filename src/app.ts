@@ -24,6 +24,7 @@ import { problemRouter } from "./modules/problems/problem.route.js";
 import { recruitmentRouter } from "./modules/recruitment/recruitment.route.js";
 import { resultRouter } from "./modules/results/result.route.js";
 import { systemRouter } from "./modules/system/system.route.js";
+import { AppError } from "./shared/errors/app-error.js";
 
 export function createApp(): Express {
   const app = express();
@@ -35,9 +36,28 @@ export function createApp(): Express {
     pinoHttp({
       logger,
       customProps: (_request, response) => ({ requestId: response.locals.requestId }),
+      serializers: {
+        req(request) {
+          const rawUrl = typeof request.url === "string" ? request.url : "";
+          const sanitizedUrl = rawUrl
+            .replace(/(\/invitations\/)[^/?]+/gi, "$1[REDACTED]")
+            .replace(/([?&](?:code|token|state)=)[^&]+/gi, "$1[REDACTED]");
+          return { method: request.method, url: sanitizedUrl };
+        },
+      },
     }),
   );
-  app.use(helmet());
+  app.use(
+    helmet({
+      referrerPolicy: { policy: "no-referrer" },
+      crossOriginResourcePolicy: { policy: "same-site" },
+    }),
+  );
+  app.use((_request, response, next) => {
+    response.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    response.setHeader("Cache-Control", "no-store");
+    next();
+  });
   app.use(
     cors({
       origin(origin, callback) {
@@ -45,7 +65,7 @@ export function createApp(): Express {
           callback(null, true);
           return;
         }
-        callback(new Error("Origin is not allowed by CORS"));
+        callback(new AppError(403, "CORS_ORIGIN_DENIED", "Origin is not allowed"));
       },
       credentials: true,
     }),

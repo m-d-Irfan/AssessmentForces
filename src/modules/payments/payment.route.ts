@@ -2,6 +2,7 @@ import { UserRole } from "@prisma/client";
 import { Router } from "express";
 import { authenticate } from "../../middlewares/authenticate.js";
 import { authorize } from "../../middlewares/authorize.js";
+import { paymentRateLimit } from "../../middlewares/rate-limit.js";
 import { validate } from "../../middlewares/validate.js";
 import {
   bkashCallbackHandler,
@@ -37,6 +38,7 @@ paymentRouter.post(
   validate({ body: bkashWebhookBodySchema }),
   bkashWebhookHandler,
 );
+paymentRouter.use("/payments/bkash", paymentRateLimit);
 
 paymentRouter.use(authenticate, authorize(UserRole.RECRUITER, UserRole.ADMIN));
 paymentRouter.post(
