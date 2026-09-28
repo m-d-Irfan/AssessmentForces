@@ -1,6 +1,6 @@
-# DevGauge API
+# Assessment Forces
 
-DevGauge is a backend API for running structured developer assessments. Recruiters create paid assessments, invite candidates, collect timed answers, and review scored reports. It is designed as a backend-focused assignment using Node.js, TypeScript, Express, PostgreSQL, and Prisma.
+Assessmemt forces is a backend API for running structured developer assessments. Recruiters create paid assessments, invite candidates, collect timed answers, and review scored reports. It is designed as a backend-focused assignment using Node.js, TypeScript, Express, PostgreSQL, and Prisma.
 
 ## Problem and solution
 
