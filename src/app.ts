@@ -1,7 +1,8 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import express, { type Express } from "express";
-import * as helmet from "helmet";
+import express, { type Express, type RequestHandler } from "express";
+import * as helmetModule from "helmet";
+import type { HelmetOptions } from "helmet";
 import { pinoHttp } from "pino-http";
 import swaggerUi from "swagger-ui-express";
 import { env } from "./config/env.js";
@@ -27,6 +28,12 @@ import { resultRouter } from "./modules/results/result.route.js";
 import { systemRouter } from "./modules/system/system.route.js";
 import { AppError } from "./shared/errors/app-error.js";
 
+// Vercel's function builder resolves Helmet's dual ESM/CJS declaration as a
+// module namespace. At runtime its default export is still the middleware factory.
+const helmet = helmetModule.default as unknown as (
+  options?: Readonly<HelmetOptions>,
+) => RequestHandler;
+
 export function createApp(): Express {
   const app = express();
 
@@ -50,7 +57,7 @@ export function createApp(): Express {
     }),
   );
   app.use(
-    helmet.default({
+    helmet({
       referrerPolicy: { policy: "no-referrer" },
       crossOriginResourcePolicy: { policy: "same-site" },
     }),
