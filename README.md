@@ -1,269 +1,407 @@
-# Assessment Forces
+# Assessment Forces API
 
-Assessmemt forces is a backend API for running structured developer assessments. Recruiters create paid assessments, invite candidates, collect timed answers, and review scored reports. It is designed as a backend-focused assignment using Node.js, TypeScript, Express, PostgreSQL, and Prisma.
+Assessment Forces (formerly DevGauge) is a production-ready, backend-focused REST API for structured developer assessments, recruitment workflows, and candidate evaluations. It empowers recruitment teams and companies to create question banks, assemble time-boxed assessments, purchase invitation credits via bKash, invite candidates, capture proctored attempts, perform automatic & manual evaluations, run multi-stage hiring pipelines, and track organizational analytics.
 
-## Problem and solution
+Built with **Node.js (ESM)**, **TypeScript**, **Express 5**, **PostgreSQL** (configured for **Neon** serverless Postgres via **Prisma 6**), and **Upstash Redis REST** for caching, rate limiting, and session security.
 
-Recruiting teams need a reliable way to assess developer skills without managing spreadsheets, manually tracking candidate links, or trusting browser-side timers. DevGauge provides a controlled assessment lifecycle:
+---
+
+## Live Deployment & Interactive Documentation
+
+- **Live Base URL:** [https://assessment-forces.onrender.com](https://assessment-forces.onrender.com)
+- **API Version 1 Root:** [https://assessment-forces.onrender.com/api/v1](https://assessment-forces.onrender.com/api/v1)
+- **Interactive Swagger UI:** [https://assessment-forces.onrender.com/api-docs/](https://assessment-forces.onrender.com/api-docs/)
+- **Raw OpenAPI 3.1 Specification:** [https://assessment-forces.onrender.com/api-docs.json](https://assessment-forces.onrender.com/api-docs.json)
+- **Service Health Check:** [https://assessment-forces.onrender.com/health](https://assessment-forces.onrender.com/health)
+- **Service Readiness Check:** [https://assessment-forces.onrender.com/ready](https://assessment-forces.onrender.com/ready)
+
+---
+
+## Core Problem & Workflow
+
+Recruiting and engineering teams frequently struggle with spreadsheet tracking, insecure link sharing, and untrusted client-side assessment timers. Assessment Forces enforces an authoritative, server-driven lifecycle:
 
 ```text
-Recruiter creates assessment → purchases invitation credits → invites candidate
-→ candidate starts timed attempt → submits answers → system evaluates
-→ recruiter receives a report
+Recruiter creates problem bank → composes assessment → purchases credits via bKash
+→ invites candidate via email → candidate starts timed attempt (server-enforced clock)
+→ candidate saves answers & submits (or auto-submits on tab blur/timer expiry)
+→ system auto-grades objective questions → recruiter reviews & scores open answers
+→ recruiter finalizes and releases report to candidate → advances candidate in multi-stage recruitment pipeline
 ```
 
-## Primary roles
+---
 
-The platform has exactly three primary roles.
+## Primary Roles & Access Control
 
-| Role | Main capabilities |
-| --- | --- |
-| Candidate | Maintain profile, view invitations, start one valid attempt, save answers, submit, and view own result. |
-| Recruiter | Maintain company profile, manage problems and assessments, purchase credits, invite candidates, and view reports. |
-| Admin | Manage users and companies, moderate problems, view audit logs, and access platform statistics. |
+The platform enforces strict Role-Based Access Control (RBAC) and tenancy isolation across three primary user roles:
 
-All protected endpoints require a Bearer token. Role-based middleware checks ownership as well as role; for example, a recruiter may only change assessments belonging to their company.
+| Role | Responsibilities & Capabilities |
+| :--- | :--- |
+| **Candidate** | Maintain profile, view received assessment invitations, start one valid attempt per token, save progressive answers, trigger manual or tab-change submissions, view released scores, and track multi-stage job applications. |
+| **Recruiter** | Manage company profile and team members, create problems (MCQ, choice, short text, code starter), assemble and freeze published assessments, purchase credit packages through bKash, issue invitations, grade submissions, finalize results, manage recruitment pipelines, and review company analytics. |
+| **Admin** | Global platform governance: manage users, verify or suspend companies, manually adjust credit ledgers with audit justification, configure credit packages, and inspect immutable system audit logs. |
 
-## Architecture
+---
 
-The project uses a **modular monolith**. It is deliberately one deployable API and one PostgreSQL database, while feature boundaries keep it ready for future separation.
+## System Architecture
+
+Assessment Forces is architected as a modular monolith: clean domain boundary separation with a single deployable Express 5 runtime backed by PostgreSQL and Redis.
 
 ```mermaid
 flowchart LR
-  Client[Postman / API client] --> API[Express API: /api/v1]
-  API --> Auth[Authentication and RBAC]
-  API --> Modules[Feature modules]
-  Modules --> Users[Users and Companies]
-  Modules --> Assessments[Problems and Assessments]
-  Modules --> Attempts[Invitations, Attempts and Submissions]
-  Modules --> Payments[Payments and Credits]
-  Modules --> Reports[Reports and Analytics]
-  Modules --> Audit[Audit Logs]
-  Modules --> DB[(PostgreSQL via Prisma)]
-  Modules --> Cache[(Redis: cache and rate limits)]
-  Payments --> Gateway[Stripe / SSLCommerz / bKash]
+  Client[Web / Postman / Mobile Client] --> Gateway[Express 5 API: /api/v1]
+  Gateway --> Security[Security Headers: Helmet / CORS / Rate Limiting]
+  Security --> Auth[JWT & Cookie Auth / Google OAuth]
+  Auth --> Modules[Feature Modules]
+  Modules --> Problems[Problems Bank & Versions]
+  Modules --> Assessments[Assessments & Items]
+  Modules --> Attempts[Invitations & Timed Attempts]
+  Modules --> Evaluations[Auto-Grading & Scoring]
+  Modules --> Recruitment[Recruitment Programs & Multi-Stage Pipelines]
+  Modules --> Payments[bKash Payments & Credit Ledger]
+  Modules --> Analytics[Dashboards & Notifications]
+  Modules --> Admin[Platform Governance & Audit Logs]
+  Modules --> DB[(Neon Serverless PostgreSQL via Prisma)]
+  Modules --> Cache[(Upstash Redis REST: Cache / Sessions / Limits)]
 ```
 
-### Suggested source layout
+### Directory Structure
 
 ```text
-src/
-  app.ts
-  server.ts
-  config/
-  middleware/
-    authenticate.ts
-    authorize.ts
-    validate.ts
-    error-handler.ts
-    rate-limit.ts
-  modules/
-    auth/
-    users/
-    companies/
-    problems/
-    assessments/
-    invitations/
-    attempts/
-    submissions/
-    payments/
-    reports/
-    admin/
-    audit-logs/
-  shared/
-    prisma.ts
-    redis.ts
-    response.ts
-    pagination.ts
-prisma/
-  schema.prisma
-  seed.ts
+.
+├── src/
+│   ├── config/             # Environment schemas (Zod), logger (Pino), database & swagger
+│   ├── integrations/       # bKash payment gateway, Nodemailer SMTP, and Google OAuth
+│   ├── jobs/               # Background maintenance jobs (expired attempts, cleanup)
+│   ├── middlewares/        # Authentication, RBAC, request validation, rate limiting, metrics
+│   ├── modules/
+│   │   ├── admin/          # Platform governance, user/company status, credit packages, audit logs
+│   │   ├── analytics/      # Company, candidate, assessment, and admin dashboards
+│   │   ├── assessments/    # Assessment authoring, item assignment, publish & archive
+│   │   ├── attempts/       # Timed attempt management, progressive answer saving, tab blur handling
+│   │   ├── auth/           # Local register/login, token rotation, email verification, Google OAuth
+│   │   ├── evaluations/    # Automated MCQ/short-text grading and manual rubric evaluation
+│   │   ├── invitations/    # Candidate invitation tokens, token validation, candidate lists
+│   │   ├── notifications/  # In-app notifications and unread badges
+│   │   ├── payments/       # bKash checkout initiation, callbacks, webhook reconciliation, ledger
+│   │   ├── problems/       # Versioned question bank (MCQ, short-text, code snippets)
+│   │   ├── recruitment/    # Multi-stage recruitment programs, interview scheduling, stage reviews
+│   │   ├── results/        # Candidate result release management and breakdown
+│   │   └── system/         # /health, /ready, and Prometheus-compatible /metrics
+│   ├── shared/             # Standard API responses, error classes, crypto utilities
+│   ├── app.ts              # Express application factory with middleware chaining
+│   └── server.ts           # HTTP server bootstrapper with graceful shutdown handling
+├── prisma/
+│   ├── schema.prisma       # Complete schema definitions, enums, relations, and indexes
+│   ├── seed.ts             # Default administrator and sample test seed data
+│   └── migrations/         # Prisma migration history
+└── tests/                  # Automated integration, security, validation, and contract tests
 ```
 
-## Assessment lifecycle
+---
+
+## Assessment & Attempt Lifecycle
+
+The attempt lifecycle is strictly server-governed to prevent tampering with client-side timers or re-submitting after deadlines:
 
 ```mermaid
 stateDiagram-v2
-  [*] --> DRAFT
-  DRAFT --> PUBLISHED: Recruiter publishes
-  PUBLISHED --> INVITED: Credit is deducted and invitation is created
-  INVITED --> IN_PROGRESS: Candidate starts before invitation expiry
-  INVITED --> EXPIRED: Invitation expires
-  IN_PROGRESS --> SUBMITTED: Candidate submits
-  IN_PROGRESS --> AUTO_SUBMITTED: Server timer expires
+  [*] --> DRAFT: Recruiter creates assessment
+  DRAFT --> PUBLISHED: Recruiter adds problems and publishes
+  PUBLISHED --> INVITED: Recruiter issues invitation (deducts 1 credit)
+  INVITED --> IN_PROGRESS: Candidate opens token & starts attempt
+  INVITED --> EXPIRED: Invitation deadline elapses
+  IN_PROGRESS --> SUBMITTED: Candidate clicks submit
+  IN_PROGRESS --> AUTO_SUBMITTED: Server timer expires or Tab Change detected
   SUBMITTED --> EVALUATING
   AUTO_SUBMITTED --> EVALUATING
-  EVALUATING --> SCORED
-  SCORED --> REPORTED
+  EVALUATING --> SCORED: Objective items auto-graded & manual review completed
+  SCORED --> RESULT_RELEASED: Recruiter releases result to candidate
+  RESULT_RELEASED --> [*]
 ```
 
-### Core business rules
+### Key Business & Security Rules
 
-- Only a published assessment can be used for invitations.
-- A recruiter needs one paid credit for every invitation sent.
-- Credit deduction and invitation creation run inside one database transaction.
-- The server controls time: `startedAt` and `expiresAt` are stored for every attempt. Client-side timers are only display helpers.
-- A candidate can start only their own valid invitation, and only once.
-- Submit is idempotent: repeated requests return the existing result instead of creating duplicate submissions.
-- A published assessment with attempts is immutable. Recruiters create a new draft version for changes.
-- Critical events are stored as audit logs.
-- Deletable business records use `deletedAt` soft deletes.
+1. **Credit-Backed Invitations:** Recruiters purchase invitation credits in bundles via bKash. Each candidate invitation consumes 1 credit within an atomic database transaction.
+2. **Authoritative Clock:** Attempt start time (`startedAt`) and deadline (`expiresAt`) are stamped and calculated by the backend. Client clocks are strictly informational.
+3. **Proctoring / Anti-Cheat Signal:** The API features a dedicated tab-change endpoint (`POST /api/v1/attempts/:id/tab-change`) that automatically transitions the attempt to `AUTO_SUBMITTED` when page visibility changes.
+4. **Idempotent Operations:** Repeated submission or payment callback requests are idempotent, preventing double grading or duplicate credit allocations.
+5. **Immutable Problem Versions:** Once an assessment is published and attempted, referenced problem versions cannot be mutated, preserving historical evaluation integrity.
+6. **Audit Trail:** Key administrative, financial, and lifecycle actions are recorded as immutable records in the `audit_logs` table.
 
-## Data model
+---
 
-```mermaid
-erDiagram
-  USER ||--o| CANDIDATE_PROFILE : has
-  USER ||--o| RECRUITER_PROFILE : has
-  COMPANY ||--o{ RECRUITER_PROFILE : employs
-  COMPANY ||--o{ ASSESSMENT : owns
-  ASSESSMENT ||--o{ ASSESSMENT_PROBLEM : contains
-  PROBLEM ||--o{ ASSESSMENT_PROBLEM : included_in
-  ASSESSMENT ||--o{ INVITATION : sends
-  CANDIDATE_PROFILE ||--o{ INVITATION : receives
-  INVITATION ||--o| ATTEMPT : opens
-  ATTEMPT ||--o{ SUBMISSION : contains
-  COMPANY ||--o{ CREDIT_LEDGER : owns
-  PAYMENT ||--o{ CREDIT_LEDGER : creates
-  USER ||--o{ AUDIT_LOG : performs
-```
+## bKash Tokenized Checkout Flow
 
-| Entity | Important fields |
-| --- | --- |
-| `users` | id, email, passwordHash, role, status, deletedAt |
-| `companies` | id, name, owner/recruiter relationship, deletedAt |
-| `problems` | id, creatorId, type, title, content, difficulty, answer configuration |
-| `assessments` | id, companyId, title, durationMinutes, status, pricePerInvite |
-| `assessment_problems` | assessmentId, problemId, points, order |
-| `invitations` | assessmentId, candidateId, token, status, expiresAt |
-| `attempts` | invitationId, startedAt, expiresAt, submittedAt, status, score |
-| `submissions` | attemptId, problemId, answer, score, feedback |
-| `payments` | provider, providerTransactionId, amount, status, metadata |
-| `credit_ledger` | companyId, creditsAdded, creditsUsed, source |
-| `audit_logs` | actorId, action, entityType, entityId, before, after |
-
-Recommended indexes: `users.email` (unique), `assessments(companyId, status)`, `invitations(candidateId, status)`, `attempts(invitationId)`, `submissions(attemptId)`, and `payments.providerTransactionId` (unique).
-
-## Payment and credit flow
-
-Recruiters purchase invitation credits. This makes payment part of the actual business workflow rather than a separate demo feature.
+DevGauge integrates with bKash Tokenized Checkout (v1.2.0-beta) for acquiring company assessment credits:
 
 ```mermaid
 sequenceDiagram
-  participant R as Recruiter
-  participant API as DevGauge API
-  participant P as Payment Gateway
-  participant DB as PostgreSQL
-  R->>API: Create payment session
-  API->>P: Create checkout / payment request
-  P-->>R: Hosted payment page
-  P->>API: Signed webhook / verified callback
-  API->>DB: Mark payment PAID and add credit ledger entry
-  R->>API: Send candidate invitation
-  API->>DB: Transaction: check and deduct credit, create invitation
+  autonumber
+  actor R as Recruiter
+  participant API as Assessment Forces API
+  participant BK as bKash Gateway
+  participant DB as Neon PostgreSQL
+  participant RD as Upstash Redis
+
+  R->>API: POST /api/v1/payments/bkash/initiate { companyId, creditPackageId }
+  API->>RD: Retrieve cached bKash grant token (or grant new)
+  API->>BK: Create payment request (Tokenized Checkout)
+  BK-->>API: Returns paymentID and bkashURL
+  API->>DB: Records payment in PENDING status
+  API-->>R: Returns checkout URL
+  R->>BK: Completes wallet authentication, OTP, and PIN
+  BK-->>API: GET /api/v1/payments/bkash/callback?paymentID=...&status=success
+  API->>BK: Execute payment request
+  API->>DB: Transaction: Set payment COMPLETED, insert Credit Ledger entry
+  API-->>R: Returns payment success confirmation and credited balance
 ```
 
-Payment success is determined only after signature/callback or provider-verification checks. Never add credits from an unverified redirect URL.
+---
 
-## API overview
+## API Endpoints Reference
 
-Every response follows a consistent shape:
+All endpoints (except public authentication and health checks) require an `Authorization: Bearer <token>` header or valid session cookies.
 
-```json
-{
-  "success": true,
-  "message": "Operation successful",
-  "data": {}
-}
-```
+### System & Documentation
+- `GET /health` — Liveness status and uptime
+- `GET /ready` — Readiness probe (validates PostgreSQL and Upstash Redis connections)
+- `GET /metrics` — Prometheus metrics (optionally protected by `METRICS_TOKEN`)
+- `GET /api-docs` — Swagger UI interactive portal
+- `GET /api-docs.json` — OpenAPI 3.1 specification
+- `GET /api/v1` — API metadata root
 
-| Area | Method | Endpoint | Access |
-| --- | --- | --- | --- |
-| Auth | POST | `/api/v1/auth/register` | Public |
-| Auth | POST | `/api/v1/auth/login` | Public |
-| Auth | POST | `/api/v1/auth/refresh-token` | Authenticated |
-| Auth | POST | `/api/v1/auth/logout` | Authenticated |
-| Profile | GET/PATCH | `/api/v1/users/me` | Authenticated |
-| Company | POST | `/api/v1/companies` | Recruiter |
-| Company | GET/PATCH | `/api/v1/companies/me` | Recruiter |
-| Problems | POST/GET | `/api/v1/problems` | Recruiter/Admin |
-| Problems | GET/PATCH/DELETE | `/api/v1/problems/:id` | Owner/Admin |
-| Assessments | POST/GET | `/api/v1/assessments` | Recruiter |
-| Assessments | GET/PATCH/DELETE | `/api/v1/assessments/:id` | Owner/Admin |
-| Assessments | POST | `/api/v1/assessments/:id/problems` | Owner |
-| Assessments | POST | `/api/v1/assessments/:id/publish` | Owner |
-| Invitations | POST | `/api/v1/assessments/:id/invitations` | Owner |
-| Invitations | GET | `/api/v1/invitations/my` | Candidate |
-| Attempts | POST | `/api/v1/invitations/:id/start` | Invited candidate |
-| Submissions | POST | `/api/v1/attempts/:id/submissions` | Attempt owner |
-| Attempts | POST | `/api/v1/attempts/:id/submit` | Attempt owner |
-| Results | GET | `/api/v1/attempts/:id/result` | Attempt owner/assessment owner |
-| Payments | POST | `/api/v1/payments/initiate` | Recruiter |
-| Payments | POST | `/api/v1/payments/webhook` | Payment gateway |
-| Payments | GET | `/api/v1/payments/:id` | Payment owner/Admin |
-| Reports | GET | `/api/v1/reports/assessments/:id` | Assessment owner |
-| Admin | GET | `/api/v1/admin/dashboard` | Admin |
-| Admin | GET | `/api/v1/admin/audit-logs` | Admin |
+### Authentication & User Management
+- `POST /api/v1/auth/register` — Create candidate or recruiter account
+- `POST /api/v1/auth/login` — Sign in with email and password
+- `POST /api/v1/auth/refresh` — Issue fresh access token via refresh token/cookie
+- `POST /api/v1/auth/logout` — Invalidate current session
+- `POST /api/v1/auth/logout-all` — Invalidate all sessions for user
+- `POST /api/v1/auth/verify-email` — Verify email via sent token
+- `POST /api/v1/auth/resend-verification` — Resend verification email
+- `POST /api/v1/auth/forgot-password` — Request password reset email
+- `POST /api/v1/auth/reset-password` — Complete password reset
+- `GET /api/v1/auth/google` — Initiate Google OAuth2 flow with PKCE
+- `GET /api/v1/auth/google/callback` — Google OAuth2 callback handler
+- `GET /api/v1/auth/me` — Retrieve authenticated user profile
 
-List endpoints support pagination, filtering, sorting, and search where relevant. For example:
+### Problems Bank
+- `POST /api/v1/problems` — Create a problem with initial version (Recruiter/Admin)
+- `GET /api/v1/problems` — List company problems with pagination and filters
+- `GET /api/v1/problems/:id` — Retrieve problem details
+- `PATCH /api/v1/problems/:id` — Update problem details
+- `DELETE /api/v1/problems/:id` — Soft delete problem
+- `POST /api/v1/problems/:id/versions` — Create an immutable version of problem
 
-```text
-GET /api/v1/problems?page=1&limit=10&type=MCQ&difficulty=MEDIUM&search=react&sortBy=createdAt&sortOrder=desc
-```
+### Assessments
+- `POST /api/v1/assessments` — Create draft assessment
+- `GET /api/v1/assessments` — List assessments (filters for status, tags, company)
+- `GET /api/v1/assessments/:id` — Retrieve assessment details
+- `PATCH /api/v1/assessments/:id` — Update draft assessment
+- `DELETE /api/v1/assessments/:id` — Soft delete assessment
+- `POST /api/v1/assessments/:id/items` — Attach problem version to assessment
+- `PATCH /api/v1/assessments/:id/items/:itemId` — Update point value or order
+- `DELETE /api/v1/assessments/:id/items/:itemId` — Remove problem from assessment
+- `POST /api/v1/assessments/:id/publish` — Publish and freeze assessment
+- `POST /api/v1/assessments/:id/archive` — Archive assessment
 
-## Security and reliability
+### Invitations & Attempts
+- `GET /api/v1/invitations/mine` — Candidate lists received invitations
+- `GET /api/v1/invitations/token/:token` — Verify invitation token details
+- `POST /api/v1/attempts/start` — Start/resume timed assessment attempt
+- `GET /api/v1/attempts/:id` — Retrieve attempt state, questions, and saved answers
+- `PUT /api/v1/attempts/:id/answers/:itemId` — Progressively save/update answer
+- `POST /api/v1/attempts/:id/submit` — Final candidate submission
+- `POST /api/v1/attempts/:id/tab-change` — Auto-submit attempt upon tab blur / visibility loss
 
-- Passwords are hashed with bcrypt or Argon2; password hashes and tokens never appear in API responses.
-- JWT access and refresh tokens protect authenticated routes.
-- Zod validates every create and update payload.
-- Helmet, restrictive CORS, and `express-rate-limit` protect the API.
-- Redis supports rate-limit storage and caches published assessment details with a short TTL.
-- Prisma transactions protect credit deduction, invitation creation, attempt creation, and payment finalization.
-- Webhook events are idempotent using a unique payment transaction/event identifier.
-- Use Prisma `select` to avoid returning sensitive or unnecessary database fields.
-- Record audit logs for publishing, invitations, attempts, submission, payment confirmation, role changes, and moderation.
+### Evaluations & Results
+- `GET /api/v1/evaluations` — List company evaluations
+- `GET /api/v1/evaluations/:id` — Get evaluation details with candidate responses
+- `POST /api/v1/evaluations/:id/auto-grade` — Run automated scoring for choice and configured short-text items
+- `PATCH /api/v1/evaluations/:id/answers/:answerId` — Manually grade and score open answers
+- `POST /api/v1/evaluations/:id/finalize` — Finalize evaluation scores
+- `GET /api/v1/results` — List company assessment results
+- `GET /api/v1/results/:id` — Recruiter view of single result
+- `PATCH /api/v1/results/:id` — Update result summary notes
+- `POST /api/v1/results/:id/release` — Release scored report to candidate
+- `GET /api/v1/results/mine` — Candidate lists their released results
+- `GET /api/v1/results/mine/:id` — Candidate views their detailed report
 
-## Local setup
+### Recruitment Programs (Multi-Stage Pipeline)
+- `POST /api/v1/recruitment-programs` — Create new hiring program
+- `GET /api/v1/recruitment-programs` — List active recruitment programs
+- `GET /api/v1/recruitment-programs/:id` — Get program details
+- `PATCH /api/v1/recruitment-programs/:id` — Update draft program
+- `POST /api/v1/recruitment-programs/:id/stages` — Add interview/coding/HR stage
+- `PUT /api/v1/recruitment-programs/:id/stages/order` — Reorder pipeline stages
+- `PUT /api/v1/recruitment-programs/:id/stages/:stageId/assignees` — Assign reviewers to stage
+- `POST /api/v1/recruitment-programs/:id/start` — Lock program and activate pipeline
+- `POST /api/v1/recruitment-programs/:id/invitations` — Invite candidate or team reviewer
+- `GET /api/v1/recruitment-programs/invitations/:token` — Preview program invitation
+- `POST /api/v1/recruitment-programs/invitations/:token/accept` — Accept program invitation
+- `GET /api/v1/recruitment-programs/my-applications` — Candidate track application stage progress
+- `GET /api/v1/recruitment-programs/:id/applications` — List candidates in recruitment pipeline
+- `GET /api/v1/recruitment-programs/tasks/mine` — Reviewer gets assigned stage tasks
+- `POST /api/v1/recruitment-programs/tasks/:progressId/reviews` — Submit stage review
+- `POST /api/v1/recruitment-programs/tasks/:progressId/schedule` — Schedule stage interview
+- `POST /api/v1/recruitment-programs/tasks/:progressId/finalize` — Lead recruiter advances or rejects candidate
+
+### Payments & Credits
+- `GET /api/v1/credit-packages` — List available credit packages
+- `POST /api/v1/payments/bkash/initiate` — Initiate bKash checkout payment
+- `GET /api/v1/payments/bkash/callback` — bKash checkout callback handler
+- `POST /api/v1/payments/bkash/webhook` — bKash asynchronous webhook endpoint
+- `GET /api/v1/payments` — List company payments
+- `GET /api/v1/payments/:id` — View payment details
+- `POST /api/v1/payments/:id/reconcile` — Reconcile pending bKash transaction
+- `GET /api/v1/credits/balance` — View company credit balance
+- `GET /api/v1/credits/ledger` — View company immutable credit ledger
+
+### Notifications & Analytics
+- `GET /api/v1/notifications` — List notifications for authenticated user
+- `GET /api/v1/notifications/unread-count` — Count of unread notifications
+- `POST /api/v1/notifications/read-all` — Mark all notifications as read
+- `PATCH /api/v1/notifications/:id/read` — Mark single notification as read
+- `GET /api/v1/analytics/company` — Recruiter organization analytics (cached in Redis)
+- `GET /api/v1/analytics/assessments/:assessmentId` — Assessment performance analytics
+- `GET /api/v1/analytics/candidate` — Candidate self-progress dashboard
+- `GET /api/v1/analytics/admin` — Platform overview analytics (Admin only)
+
+### Administration
+- `GET /api/v1/admin/users` — Search and filter users
+- `GET /api/v1/admin/users/:id` — View user details
+- `PATCH /api/v1/admin/users/:id/status` — Activate or suspend user
+- `GET /api/v1/admin/companies` — Search and filter companies
+- `GET /api/v1/admin/companies/:id` — View company details
+- `PATCH /api/v1/admin/companies/:id/status` — Activate or suspend company
+- `PATCH /api/v1/admin/companies/:id/verification` — Toggle company verification
+- `POST /api/v1/admin/companies/:id/credits/adjust` — Manual audited credit adjustment
+- `GET /api/v1/admin/credit-packages` — List all credit packages
+- `POST /api/v1/admin/credit-packages` — Create credit package
+- `PATCH /api/v1/admin/credit-packages/:id` — Update credit package
+- `DELETE /api/v1/admin/credit-packages/:id` — Soft delete credit package
+- `GET /api/v1/admin/audit-logs` — Search platform audit records
+
+---
+
+## Local Development & Setup
 
 ### Prerequisites
+- **Node.js**: >= 20.0.0 (Node 22 or 24 LTS recommended)
+- **PostgreSQL**: Neon Cloud Postgres (or local PostgreSQL 15+)
+- **Redis**: Upstash Redis REST endpoint (or compatible service)
+- **Package Manager**: npm (v10+)
 
-- Node.js 20+
-- PostgreSQL 15+
-- Redis (optional locally, required for full cache/rate-limit behavior)
-- A Stripe, SSLCommerz, or bKash sandbox account
+### Setup Instructions
 
-### Installation
+1. **Clone the repository and install dependencies:**
+   ```bash
+   git clone https://github.com/m-d-Irfan/AssessmentForces.git
+   cd AssessmentForces
+   npm install
+   ```
 
-```bash
-npm install
-cp .env.example .env
-npx prisma migrate dev
-npx prisma db seed
-npm run dev
-```
+2. **Configure environment variables:**
+   Create a `.env` file in the project root:
+   ```env
+   NODE_ENV=development
+   PORT=5000
+   API_PREFIX=/api/v1
+   APP_NAME="Assessment Forces API"
+   APP_BASE_URL=http://localhost:5000
+   CANDIDATE_APP_URL=http://localhost:3000
+   CORS_ORIGINS="http://localhost:3000,http://localhost:5000"
 
-### Environment variables
+   # Database (Neon PostgreSQL)
+   DATABASE_URL="postgresql://user:password@ep-pooled.neon.tech/neondb?sslmode=require"
+   DATABASE_URL_UNPOOLED="postgresql://user:password@ep-direct.neon.tech/neondb?sslmode=require"
 
-```env
-PORT=5000
-NODE_ENV=development
-DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/devgauge"
-REDIS_URL="redis://localhost:6379"
-JWT_ACCESS_SECRET="replace-with-a-long-random-secret"
-JWT_REFRESH_SECRET="replace-with-a-different-long-random-secret"
-PAYMENT_PROVIDER="stripe"
-STRIPE_SECRET_KEY=""
-STRIPE_WEBHOOK_SECRET=""
-```
+   # Upstash Redis REST
+   UPSTASH_REDIS_REST_URL="https://your-upstash-instance.upstash.io"
+   UPSTASH_REDIS_REST_TOKEN="your-upstash-rest-token"
 
-## Testing and documentation
+   # Security & Cryptography (Generate at least 32 random characters for each)
+   JWT_ACCESS_SECRET="generate-a-strong-32-char-random-secret-for-jwt"
+   SENSITIVE_DATA_ENCRYPTION_KEY="generate-a-strong-32-char-key-for-data-encryption"
+   JWT_ACCESS_TTL_MINUTES=15
+   REFRESH_TOKEN_TTL_DAYS=30
+   REFRESH_COOKIE_NAME=devassess_refresh
 
-- Keep a Postman collection with variables for `baseUrl`, candidate token, recruiter token, admin token, and payment webhook secret.
-- Test all three roles, unauthorized access, invalid input, duplicate submissions, expired invitations, insufficient credits, and duplicate webhooks.
-- Include API examples, ERD, setup steps, and deployed URL in the final submission.
+   # Google OAuth (Optional for local testing)
+   GOOGLE_CLIENT_ID=""
+   GOOGLE_CLIENT_SECRET=""
+   GOOGLE_REDIRECT_URI=http://localhost:5000/api/v1/auth/google/callback
 
-## Future scale-out path
+   # bKash Sandbox (Optional for local testing)
+   BKASH_BASE_URL="https://tokenized.sandbox.bka.sh/v1.2.0-beta/tokenized/checkout"
+   BKASH_APP_KEY=""
+   BKASH_APP_SECRET=""
+   BKASH_USERNAME=""
+   BKASH_PASSWORD=""
+   BKASH_CALLBACK_URL="http://localhost:5000/api/v1/payments/bkash/callback"
 
-The API can later be split into Identity, Assessment, Submission, Billing, and Reporting services. If real code execution is added, it must run in isolated workers/containers with strict CPU, memory, execution-time, and network limits—not in the Express API process.
-#   A s s e s s m e n t F o r c e s  
- 
+   # SMTP Email (Gmail App Password or local mock)
+   SMTP_HOST="smtp.gmail.com"
+   SMTP_PORT=587
+   SMTP_SECURE=false
+   SMTP_USER=""
+   SMTP_PASSWORD=""
+   EMAIL_FROM="Assessment Forces <no-reply@assessmentforces.local>"
+
+   # Database Seeding
+   SEED_ADMIN_EMAIL="admin@assessmentforces.local"
+   SEED_ADMIN_PASSWORD="AdminSecurePassword123!"
+   SEED_DEMO_DATA=false
+   ```
+
+3. **Run database migrations and seed default records:**
+   ```bash
+   npx prisma generate
+   npm run db:deploy
+   npm run db:seed
+   ```
+
+4. **Start development server:**
+   ```bash
+   npm run dev
+   ```
+
+5. **Access the application:**
+   - Swagger Documentation: [http://localhost:5000/api-docs](http://localhost:5000/api-docs)
+   - Health check: [http://localhost:5000/health](http://localhost:5000/health)
+
+---
+
+## Available NPM Scripts
+
+| Command | Action |
+| :--- | :--- |
+| `npm run dev` | Starts server with file watcher (`tsx watch src/server.ts`) |
+| `npm run build` | Compiles production bundle with `tsup` |
+| `npm start` | Boots compiled bundle (`node dist/server.js`) |
+| `npm run typecheck` | Runs TypeScript compiler check (`tsc --noEmit`) |
+| `npm run lint` | Checks code formatting and lints with Biome |
+| `npm run lint:fix` | Automatically fixes code and formatting issues |
+| `npm test` | Runs all Vitest test suites |
+| `npm run test:unit` | Runs unit tests |
+| `npm run test:http` | Runs HTTP and system integration tests |
+| `npm run test:coverage`| Generates code coverage report via Vitest V8 |
+| `npm run prisma:generate` | Generates Prisma client types |
+| `npm run db:migrate` | Runs database migrations in development |
+| `npm run db:deploy` | Applies pending migrations in production |
+| `npm run db:seed` | Seeds database with seed admin and catalog items |
+| `npm run db:studio` | Launches Prisma Studio GUI |
+
+---
+
+## Security & Reliability Design
+
+- **Input Validation**: 100% of request bodies, route parameters, and query parameters are validated with **Zod** before hitting controllers.
+- **Data Protection**: Sensitive custom attributes, candidate notes, and verification keys are encrypted using AES-256-GCM via `SENSITIVE_DATA_ENCRYPTION_KEY`.
+- **Protection Headers**: Configured with **Helmet** (disabling `x-powered-by`, setting restrictive Referrer and Permissions policies).
+- **Rate Limiting**: Multi-tiered rate limiting with Redis store:
+  - Global rate limiter (100 req / 15 min default)
+  - Dedicated authentication limiter (10 attempts / window)
+  - Payment initiation limiter (10 attempts / window)
+- **Token Security**: Refresh tokens are stored hashed in PostgreSQL with single-use rotation, family invalidation upon reuse, and stored in `httpOnly`, `sameSite=lax`, `secure` cookies.
+- **Anti-Cheat Monitoring**: Timed attempt auto-completion on window/tab loss signals (`POST /api/v1/attempts/:id/tab-change`).
