@@ -1,7 +1,7 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express, { type Express } from "express";
-import helmet from "helmet";
+import * as helmet from "helmet";
 import { pinoHttp } from "pino-http";
 import swaggerUi from "swagger-ui-express";
 import { env } from "./config/env.js";
@@ -50,7 +50,7 @@ export function createApp(): Express {
     }),
   );
   app.use(
-    helmet({
+    helmet.default({
       referrerPolicy: { policy: "no-referrer" },
       crossOriginResourcePolicy: { policy: "same-site" },
     }),
