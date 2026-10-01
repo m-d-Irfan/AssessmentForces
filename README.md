@@ -120,6 +120,17 @@ stateDiagram-v2
   RESULT_RELEASED --> [*]
 ```
 
+
+# Business & Security Rules
+
+This document outlines the core architectural constraints, financial safety mechanisms, and evaluation integrity rules that must be strictly enforced across the application.
+
+---
+
+### ⚙️ System Architecture & Financial Rules
+
+*   **Credit-Backed Invitations:** Recruiters buy invitation credits in bundles via the bKash payment gateway.
+
 ### Key Business & Security Rules
 
 1. **Credit-Backed Invitations:** Recruiters purchase invitation credits in bundles via bKash. Each candidate invitation consumes 1 credit within an atomic database transaction.
